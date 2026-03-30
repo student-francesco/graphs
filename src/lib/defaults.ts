@@ -25,4 +25,12 @@ export const DEFAULT_SETTINGS: ChartSettings = {
 
   minOverlapForTransition: 2,
   overlapThreshold: 0.3,
+
+  setDataAnimation: 'drawOn',
+  updateDataAnimation: 'morph',
+  appendAnimation: 'none',
+
+  maxDataPoints: null,
+
+  edgeFadeWidth: 0,
 }

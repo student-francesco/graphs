@@ -74,6 +74,25 @@ document.getElementById('btn-append')!.addEventListener('click', () => {
   setLog(`appendDataPoint({ date: "${point.date}", value: ${point.value.toFixed(2)} })`)
 })
 
+let autoAppendTimer: ReturnType<typeof setInterval> | null = null
+const btnAutoAppend = document.getElementById('btn-auto-append')!
+btnAutoAppend.addEventListener('click', () => {
+  if (autoAppendTimer !== null) {
+    clearInterval(autoAppendTimer)
+    autoAppendTimer = null
+    btnAutoAppend.textContent = 'Auto'
+    btnAutoAppend.classList.remove('active')
+    setLog('Auto-append stopped.')
+  } else {
+    autoAppendTimer = setInterval(() => {
+      document.getElementById('btn-append')!.click()
+    }, 250)
+    btnAutoAppend.textContent = 'Stop'
+    btnAutoAppend.classList.add('active')
+    setLog('Auto-append running every 250 ms…')
+  }
+})
+
 document.getElementById('btn-append-batch')!.addEventListener('click', () => {
   const last = currentData[currentData.length - 1]
   if (last === undefined) return
@@ -117,3 +136,43 @@ document.getElementById('btn-toggle-grid')!.addEventListener('click', () => {
   chart.updateSettings({ showGrid: gridOn })
   setLog(`updateSettings({ showGrid: ${gridOn} })`)
 })
+
+// ---------------------------------------------------------------------------
+// Animation settings
+// ---------------------------------------------------------------------------
+
+const animDurationInput = document.getElementById('anim-duration') as HTMLInputElement
+const animSetDataSelect = document.getElementById('anim-set-data') as HTMLSelectElement
+const animUpdateDataSelect = document.getElementById('anim-update-data') as HTMLSelectElement
+const animAppendSelect = document.getElementById('anim-append') as HTMLSelectElement
+
+import type { AnimationMode } from './lib/types.ts'
+
+function syncAnimationSettings() {
+  const duration = Math.max(0, parseInt(animDurationInput.value, 10) || 0)
+  const setDataAnimation = animSetDataSelect.value as AnimationMode
+  const updateDataAnimation = animUpdateDataSelect.value as AnimationMode
+  const appendAnimation = animAppendSelect.value as AnimationMode
+  chart.updateSettings({ animationDuration: duration, setDataAnimation, updateDataAnimation, appendAnimation })
+  setLog(`updateSettings({ animationDuration: ${duration}, setDataAnimation: "${setDataAnimation}", updateDataAnimation: "${updateDataAnimation}", appendAnimation: "${appendAnimation}" })`)
+}
+
+const maxDataPointsInput = document.getElementById('max-data-points') as HTMLInputElement
+maxDataPointsInput.addEventListener('change', () => {
+  const raw = maxDataPointsInput.value.trim()
+  const maxDataPoints = raw === '' ? null : Math.max(1, parseInt(raw, 10) || 1)
+  chart.updateSettings({ maxDataPoints })
+  setLog(`updateSettings({ maxDataPoints: ${maxDataPoints ?? 'null'} })`)
+})
+
+const edgeFadeWidthInput = document.getElementById('edge-fade-width') as HTMLInputElement
+edgeFadeWidthInput.addEventListener('change', () => {
+  const edgeFadeWidth = Math.max(0, parseInt(edgeFadeWidthInput.value, 10) || 0)
+  chart.updateSettings({ edgeFadeWidth })
+  setLog(`updateSettings({ edgeFadeWidth: ${edgeFadeWidth} })`)
+})
+
+animDurationInput.addEventListener('change', syncAnimationSettings)
+animSetDataSelect.addEventListener('change', syncAnimationSettings)
+animUpdateDataSelect.addEventListener('change', syncAnimationSettings)
+animAppendSelect.addEventListener('change', syncAnimationSettings)

@@ -1,3 +1,9 @@
+export type AnimationMode =
+  | 'none'        // instant — no transition
+  | 'drawOn'      // stroke-dasharray draw-from-left
+  | 'transition'  // container scroll — slides lc-scroll-container as a unit; falls back to drawOn if path is brand new
+  | 'morph'       // smooth D3 path morph + per-dot transitions (old 'transition' behaviour)
+
 export type CurveType =
   | 'linear'
   | 'monotoneX'
@@ -62,6 +68,17 @@ export interface ChartSettings {
   // updateData delta thresholds
   minOverlapForTransition: number  // minimum absolute overlap count (default 2)
   overlapThreshold: number         // minimum overlap ratio 0–1 (default 0.3)
+
+  // Per-operation animation mode
+  setDataAnimation: AnimationMode      // default 'drawOn'
+  updateDataAnimation: AnimationMode   // default 'morph'
+  appendAnimation: AnimationMode       // default 'none'; appendDataPoints inherits this
+
+  // Rolling window — null means unlimited
+  maxDataPoints: number | null
+
+  // Edge fade — px from each edge where content fades to transparent; 0 = disabled
+  edgeFadeWidth: number
 }
 
 /** The object Blazor holds as IJSObjectReference */

@@ -1,25 +1,33 @@
 import * as d3 from 'd3'
-import type { ChartSettings } from './types.ts'
+import type { AnimationMode, ChartSettings } from './types.ts'
 
 export interface AxesConfig {
+  /** Container for the fixed y-axis (stays outside the scroll container) */
   g: d3.Selection<SVGGElement, unknown, null, undefined>
+  /** Container for grids and x-axis ticks (inside the scroll container) */
+  scrollG: d3.Selection<SVGGElement, unknown, null, undefined>
   xScale: d3.ScaleTime<number, number>
   yScale: d3.ScaleLinear<number, number>
   innerWidth: number
   innerHeight: number
   settings: ChartSettings
-  animate: boolean
+  mode: AnimationMode
   duration: number
 }
 
 export function renderAxes(config: AxesConfig): void {
-  const { g, xScale, yScale, innerWidth, innerHeight, settings, animate, duration } = config
+  const { g, scrollG, xScale, yScale, innerWidth, innerHeight, settings, mode, duration } = config
+  const animate = mode !== 'none'
+  // In transition mode the container scroll drives all horizontal motion — axis
+  // elements must be placed at their final positions instantly so they move in
+  // unison with the container, not via a competing D3 transition.
+  const animateXContent = animate && mode !== 'transition'
 
   // ---- Grid ----
   if (settings.showGrid) {
-    const yGrid = g.select<SVGGElement>('.lc-grid-y')
+    const yGrid = scrollG.select<SVGGElement>('.lc-grid-y')
     const yGridEl = yGrid.empty()
-      ? g.insert('g', ':first-child').attr('class', 'lc-grid-y')
+      ? scrollG.insert('g', ':first-child').attr('class', 'lc-grid-y')
       : yGrid
 
     const yGridAxis = d3.axisLeft(yScale).tickSize(-innerWidth).tickFormat(() => '')
@@ -32,19 +40,20 @@ export function renderAxes(config: AxesConfig): void {
         .attr('stroke-dasharray', '3,3')
     }
 
-    if (animate) {
+    if (animateXContent) {
       yGridEl.transition().duration(duration).call(applyYGrid as never)
     } else {
       applyYGrid(yGridEl)
     }
 
-    const xGrid = g.select<SVGGElement>('.lc-grid-x')
+    const xGrid = scrollG.select<SVGGElement>('.lc-grid-x')
     const xGridEl = xGrid.empty()
-      ? g.insert('g', ':first-child').attr('class', 'lc-grid-x').attr('transform', `translate(0,${innerHeight})`)
+      ? scrollG.insert('g', ':first-child').attr('class', 'lc-grid-x')
       : xGrid
 
     const xGridAxis = d3.axisBottom(xScale).tickSize(-innerHeight).tickFormat(() => '')
     const applyXGrid = (sel: d3.Selection<SVGGElement, unknown, null, undefined>) => {
+      sel.attr('transform', `translate(0,${innerHeight})`)
       sel.call(xGridAxis)
       sel.select('.domain').remove()
       sel.selectAll('.tick line')
@@ -53,34 +62,85 @@ export function renderAxes(config: AxesConfig): void {
         .attr('stroke-dasharray', '3,3')
     }
 
-    xGridEl.attr('transform', `translate(0,${innerHeight})`)
-    if (animate) {
+    if (animateXContent) {
       xGridEl.transition().duration(duration).call(applyXGrid as never)
     } else {
       applyXGrid(xGridEl)
     }
   } else {
-    g.selectAll('.lc-grid-x,.lc-grid-y').remove()
+    scrollG.selectAll('.lc-grid-x,.lc-grid-y').remove()
   }
 
-  // ---- X Axis ----
-  const xAxisGen = d3.axisBottom(xScale)
-  if (settings.xAxisFormatter !== null) {
-    xAxisGen.tickFormat((d, i) => settings.xAxisFormatter!(d as Date, i))
-  }
+  // ---- X Axis ticks (data-join — managed like dots) ----
+  const ticks = xScale.ticks()
+  const defaultFormatter = xScale.tickFormat()
+  const formatTick = (d: Date, i: number): string =>
+    settings.xAxisFormatter ? settings.xAxisFormatter(d, i) : defaultFormatter(d)
 
-  const xAxisEl = g.select<SVGGElement>('.lc-x-axis')
-  const xAxis = xAxisEl.empty()
-    ? g.append('g').attr('class', 'lc-x-axis').attr('transform', `translate(0,${innerHeight})`)
-    : xAxisEl.attr('transform', `translate(0,${innerHeight})`)
+  const tickSel = scrollG
+    .selectAll<SVGGElement, Date>('.lc-x-tick')
+    .data(ticks, d => d.getTime())
 
-  if (animate) {
-    xAxis.transition().duration(duration).call(xAxisGen)
+  // Enter: new ticks start at their final x position
+  const enterG = tickSel
+    .enter()
+    .append('g')
+    .attr('class', 'lc-x-tick')
+    .attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
+
+  enterG
+    .append('line')
+    .attr('stroke', 'currentColor')
+    .attr('y2', 6)
+
+  enterG
+    .append('text')
+    .attr('fill', 'currentColor')
+    .attr('font-size', '10px')
+    .attr('font-family', 'sans-serif')
+    .attr('dy', '0.71em')
+    .attr('y', 9)
+    .attr('text-anchor', 'middle')
+    .text((d, i) => formatTick(d, i))
+
+  const merged = enterG.merge(tickSel)
+
+  // Update text for all visible ticks
+  merged.select('text').text((d, i) => formatTick(d, i))
+
+  if (animateXContent && duration > 0) {
+    merged
+      .transition()
+      .duration(duration)
+      .attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
+    tickSel.exit().remove()
+  } else if (mode === 'transition') {
+    // Snap to final positions; the container scroll carries everything together
+    merged.attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
+    // Exit ticks stay in DOM until the container scroll completes, then are removed
+    tickSel.exit<Date>()
+      .transition()
+      .delay(duration)
+      .duration(0)
+      .remove()
   } else {
-    xAxis.call(xAxisGen)
+    merged.attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
+    tickSel.exit().remove()
   }
 
-  // ---- Y Axis ----
+  // Axis baseline — extended well beyond visible range so clipping handles edges cleanly
+  const baseline = scrollG.select<SVGLineElement>('.lc-x-axis-line')
+  const baselineEl = baseline.empty()
+    ? scrollG.append('line').attr('class', 'lc-x-axis-line')
+    : baseline
+  baselineEl
+    .attr('stroke', 'currentColor')
+    .attr('x1', -innerWidth)
+    .attr('y1', innerHeight)
+    .attr('x2', innerWidth * 2)
+    .attr('y2', innerHeight)
+
+  // ---- Y Axis (fixed, outside scroll container) ----
   const yAxisGen = d3.axisLeft(yScale)
   if (settings.yAxisFormatter !== null) {
     yAxisGen.tickFormat((d, i) => settings.yAxisFormatter!(d as number, i))
@@ -91,7 +151,7 @@ export function renderAxes(config: AxesConfig): void {
     ? g.append('g').attr('class', 'lc-y-axis')
     : yAxisEl
 
-  if (animate) {
+  if (animate && duration > 0) {
     yAxis.transition().duration(duration).call(yAxisGen)
   } else {
     yAxis.call(yAxisGen)
