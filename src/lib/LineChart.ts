@@ -87,6 +87,8 @@ export class LineChart implements LineChartHandle {
   private pendingExitPoints: DataPoint[] = []
   private prevXScale: d3.ScaleTime<number, number> | null = null
 
+  private lastRender: number = Date.now()
+
   constructor(divId: string, settings?: Partial<ChartSettings>) {
     const el = document.getElementById(divId)
     if (el === null) throw new Error(`LineChart: no element with id "${divId}"`)
@@ -447,9 +449,11 @@ export class LineChart implements LineChartHandle {
     if (this.data.length === 0) return
 
     const duration = mode !== 'none' ? this.settings.animationDuration : 0
-    const ease = EASING_MAP[this.settings.easingType]
     const { xScale, yScale } = this.buildScales()
     const curve = CURVE_MAP[this.settings.curveType]
+
+    const animatingStill = this.lastRender + duration > Date.now();
+    const ease = animatingStill ? EASING_MAP.easeExpOut : EASING_MAP[this.settings.easingType]
 
     const innerTransform = `translate(${this.settings.margins.left},${this.settings.margins.top})`
     this.innerG.attr('transform', innerTransform)
@@ -502,6 +506,7 @@ export class LineChart implements LineChartHandle {
       settings: this.settings,
       mode,
       duration,
+      ease,
     })
 
     this.renderLine(scrollContainer, xScale, yScale, curve, mode, duration, ease)
@@ -528,6 +533,7 @@ export class LineChart implements LineChartHandle {
     }
 
     this.prevXScale = xScale
+    this.lastRender = Date.now();
 
     // Keep a small number of exit points so the blur is not disturbed
     this.pendingExitPoints.splice(0, this.pendingExitPoints.length - 4);

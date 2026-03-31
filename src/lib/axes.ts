@@ -15,10 +15,11 @@ export interface AxesConfig {
   settings: ChartSettings
   mode: AnimationMode
   duration: number
+  ease: (t: number) => number
 }
 
 export function renderAxes(config: AxesConfig): void {
-  const { g, chartAreaG, scrollG, xScale, yScale, innerWidth, innerHeight, settings, mode, duration } = config
+  const { g, chartAreaG, scrollG, xScale, yScale, innerWidth, innerHeight, settings, mode, duration, ease } = config
   const animate = mode !== 'none'
   // In transition mode the container scroll drives all horizontal motion — elements
   // must snap to their final positions so they move as one unit with the container.
@@ -64,7 +65,7 @@ export function renderAxes(config: AxesConfig): void {
     }
 
     if (animateScrollContent) {
-      xGridEl.transition().duration(duration).call(applyXGrid as never)
+      xGridEl.transition().duration(duration).ease(ease).call(applyXGrid as never)
     } else {
       applyXGrid(xGridEl)
     }
@@ -132,6 +133,7 @@ export function renderAxes(config: AxesConfig): void {
     merged
       .transition()
       .duration(duration)
+      .ease(ease)
       .attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
     tickSel.exit().remove()
   } else {
