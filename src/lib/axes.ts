@@ -123,22 +123,23 @@ export function renderAxes(config: AxesConfig): void {
   if (mode === 'transition') {
     // Snap all ticks to their final positions — the container scroll carries them.
     merged.attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
-    // Keep exit ticks in the DOM until the container scroll finishes, then remove.
-    tickSel.exit<Date>()
-      .transition()
-      .delay(duration)
-      .duration(0)
-      .remove()
   } else if (animateScrollContent && duration > 0) {
     merged
       .transition()
       .duration(duration)
       .ease(ease)
       .attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
-    tickSel.exit().remove()
   } else {
     merged.attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
-    tickSel.exit().remove()
+  }
+
+  // Rename class immediately so future joins never see these elements again,
+  // then fade them out independently of any subsequent render.
+  const exitTicks = tickSel.exit<Date>().attr('class', 'lc-x-tick-exiting')
+  if (duration > 0) {
+    exitTicks.transition().duration(duration).ease(ease).style('opacity', 0).remove()
+  } else {
+    exitTicks.remove()
   }
 
   // ---- Y Axis (fixed, in innerG — rendered on top of chart area) ----

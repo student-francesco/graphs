@@ -478,6 +478,7 @@ export class LineChart implements LineChartHandle {
     // This MUST happen before rendering content so elements never appear at
     // un-shifted new-scale positions (which would cause a visible snap).
     let scrollStartX = 0
+    let scrollDelta = 0
     if (mode === 'transition' && duration > 0) {
       scrollContainer.interrupt()
       const raw = scrollContainer.attr('transform') || ''
@@ -488,6 +489,8 @@ export class LineChart implements LineChartHandle {
         const refDate = this.data[0].date
         scrollStartX = (this.prevXScale(refDate) - xScale(refDate)) + currentScrollX
       }
+
+      scrollDelta = currentScrollX - scrollStartX
 
       scrollContainer.attr('transform',
         Math.abs(scrollStartX) > 0.5
@@ -514,6 +517,23 @@ export class LineChart implements LineChartHandle {
 
     if (this.settings.showTooltip && this.tooltip !== null) {
       this.renderHoverZones(scrollContainer, xScale, yScale)
+    }
+
+    // Reshift exiting elements so they don't jump when the container is repositioned.
+    // Each element's local X is adjusted by scrollDelta so its visual position stays
+    // where it was before the container moved. No transition — position only.
+    if (mode === 'transition' && Math.abs(scrollDelta) > 0.5) {
+      const ih = this.innerHeight
+      scrollContainer.selectAll<SVGGElement, unknown>('.lc-x-tick-exiting')
+        .attr('transform', function() {
+          const t = d3.select(this).attr('transform') ?? 'translate(0,0)'
+          const m = t.match(/translate\(\s*([-\d.e]+)\s*,\s*([-\d.e]+)/)
+          return m ? `translate(${parseFloat(m[1]) + scrollDelta}, ${ih})` : t
+        })
+      scrollContainer.selectAll<SVGCircleElement, unknown>('.lc-dot-exiting')
+        .attr('cx', function() {
+          return parseFloat(d3.select(this).attr('cx') ?? '0') + scrollDelta
+        })
     }
 
     // Animate scroll container to origin (transition mode) or reset (other modes)
@@ -622,7 +642,7 @@ export class LineChart implements LineChartHandle {
     ease: (t: number) => number,
   ): void {
     if (this.settings.dotRadius === 0) {
-      scrollContainer.selectAll('.lc-dot').remove()
+      scrollContainer.selectAll('.lc-dot,.lc-dot-exiting').remove()
       return
     }
 
@@ -664,22 +684,13 @@ export class LineChart implements LineChartHandle {
         .attr('r', this.settings.dotRadius)
     }
 
-    if (mode === 'morph' && duration > 0) {
-      dots.exit<DataPoint>()
-        .transition()
-        .duration(duration)
-        .ease(ease)
-        .attr('r', 0)
-        .remove()
-    } else if (mode === 'transition' && duration > 0) {
-      // Keep exit dots visible during scroll animation, then remove
-      dots.exit()
-        .transition()
-        .delay(duration)
-        .duration(0)
-        .remove()
+    // Rename class immediately so future joins never see these elements again,
+    // then fade them out independently of any subsequent render.
+    const exitDots = dots.exit<DataPoint>().attr('class', 'lc-dot-exiting')
+    if (duration > 0) {
+      exitDots.transition().duration(duration).ease(ease).style('opacity', 0).remove()
     } else {
-      dots.exit().remove()
+      exitDots.remove()
     }
   }
 
