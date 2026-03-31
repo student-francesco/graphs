@@ -1,8 +1,19 @@
+export type EasingType =
+  | 'easeLinear'
+  | 'easeQuadIn'    | 'easeQuadOut'    | 'easeQuadInOut'
+  | 'easeCubicIn'   | 'easeCubicOut'   | 'easeCubicInOut'
+  | 'easeSinIn'     | 'easeSinOut'     | 'easeSinInOut'
+  | 'easeExpIn'     | 'easeExpOut'     | 'easeExpInOut'
+  | 'easeCircleIn'  | 'easeCircleOut'  | 'easeCircleInOut'
+  | 'easeBackIn'    | 'easeBackOut'    | 'easeBackInOut'
+  | 'easeBounceIn'  | 'easeBounceOut'  | 'easeBounceInOut'
+  | 'easeElasticIn' | 'easeElasticOut' | 'easeElasticInOut'
+
 export type AnimationMode =
   | 'none'        // instant — no transition
   | 'drawOn'      // stroke-dasharray draw-from-left
   | 'transition'  // container scroll — slides lc-scroll-container as a unit; falls back to drawOn if path is brand new
-  | 'morph'       // smooth D3 path morph + per-dot transitions (old 'transition' behaviour)
+  | 'morph'       // smooth D3 path morph + per-dot transitions
 
 export type CurveType =
   | 'linear'
@@ -54,6 +65,7 @@ export interface ChartSettings {
 
   // Animation
   animationDuration: number   // ms; 0 = no animation
+  easingType: EasingType
 
   // Layout
   margins: ChartMargins

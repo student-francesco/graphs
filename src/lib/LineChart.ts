@@ -4,6 +4,7 @@ import type {
   DataPoint,
   ChartSettings,
   CurveType,
+  EasingType,
   LineChartHandle,
   AnimationMode,
 } from './types.ts'
@@ -11,6 +12,18 @@ import { DEFAULT_SETTINGS } from './defaults.ts'
 import { renderSkeleton, removeSkeleton } from './skeleton.ts'
 import { renderAxes } from './axes.ts'
 import { TooltipController } from './tooltip.ts'
+
+const EASING_MAP: Record<EasingType, (t: number) => number> = {
+  easeLinear:      d3.easeLinear,
+  easeQuadIn:      d3.easeQuadIn,    easeQuadOut:      d3.easeQuadOut,    easeQuadInOut:      d3.easeQuadInOut,
+  easeCubicIn:     d3.easeCubicIn,   easeCubicOut:     d3.easeCubicOut,   easeCubicInOut:     d3.easeCubicInOut,
+  easeSinIn:       d3.easeSinIn,     easeSinOut:       d3.easeSinOut,     easeSinInOut:       d3.easeSinInOut,
+  easeExpIn:       d3.easeExpIn,     easeExpOut:       d3.easeExpOut,     easeExpInOut:       d3.easeExpInOut,
+  easeCircleIn:    d3.easeCircleIn,  easeCircleOut:    d3.easeCircleOut,  easeCircleInOut:    d3.easeCircleInOut,
+  easeBackIn:      d3.easeBackIn,    easeBackOut:      d3.easeBackOut,    easeBackInOut:      d3.easeBackInOut,
+  easeBounceIn:    d3.easeBounceIn,  easeBounceOut:    d3.easeBounceOut,  easeBounceInOut:    d3.easeBounceInOut,
+  easeElasticIn:   d3.easeElasticIn, easeElasticOut:   d3.easeElasticOut, easeElasticInOut:   d3.easeElasticInOut,
+}
 
 const CURVE_MAP: Record<CurveType, d3.CurveFactory | d3.CurveFactoryLineOnly> = {
   linear: d3.curveLinear,
@@ -434,6 +447,7 @@ export class LineChart implements LineChartHandle {
     if (this.data.length === 0) return
 
     const duration = mode !== 'none' ? this.settings.animationDuration : 0
+    const ease = EASING_MAP[this.settings.easingType]
     const { xScale, yScale } = this.buildScales()
     const curve = CURVE_MAP[this.settings.curveType]
 
@@ -490,8 +504,8 @@ export class LineChart implements LineChartHandle {
       duration,
     })
 
-    this.renderLine(scrollContainer, xScale, yScale, curve, mode, duration)
-    this.renderDots(scrollContainer, xScale, yScale, mode, duration)
+    this.renderLine(scrollContainer, xScale, yScale, curve, mode, duration, ease)
+    this.renderDots(scrollContainer, xScale, yScale, mode, duration, ease)
 
     if (this.settings.showTooltip && this.tooltip !== null) {
       this.renderHoverZones(scrollContainer, xScale, yScale)
@@ -503,7 +517,7 @@ export class LineChart implements LineChartHandle {
         scrollContainer
           .transition()
           .duration(duration)
-          .ease(d3.easeCubicInOut)
+          .ease(ease)
           .attr('transform', 'translate(0, 0)')
       } else {
         scrollContainer.attr('transform', 'translate(0, 0)')
@@ -526,6 +540,7 @@ export class LineChart implements LineChartHandle {
     curve: d3.CurveFactory | d3.CurveFactoryLineOnly,
     mode: AnimationMode,
     duration: number,
+    ease: (t: number) => number,
   ): void {
     const lineGen = d3
       .line<DataPoint>()
@@ -557,7 +572,7 @@ export class LineChart implements LineChartHandle {
         .attr('stroke-dashoffset', totalLength)
         .transition()
         .duration(duration)
-        .ease(d3.easeCubicInOut)
+        .ease(ease)
         .attr('stroke-dashoffset', 0)
         .on('end', () => {
           path.attr('stroke-dasharray', null).attr('stroke-dashoffset', null)
@@ -571,7 +586,7 @@ export class LineChart implements LineChartHandle {
       path
         .transition()
         .duration(duration)
-        .ease(d3.easeCubicInOut)
+        .ease(ease)
         .attr('d', lineGen(renderData) ?? '')
     } else if (mode === 'transition') {
       // Container handles the animation; render path instantly.
@@ -598,6 +613,7 @@ export class LineChart implements LineChartHandle {
     yScale: d3.ScaleLinear<number, number>,
     mode: AnimationMode,
     duration: number,
+    ease: (t: number) => number,
   ): void {
     if (this.settings.dotRadius === 0) {
       scrollContainer.selectAll('.lc-dot').remove()
@@ -630,7 +646,7 @@ export class LineChart implements LineChartHandle {
       merged
         .transition()
         .duration(duration)
-        .ease(d3.easeCubicOut)
+        .ease(ease)
         .attr('cx', d => xScale(d.date))
         .attr('cy', d => yScale(d.value))
         .attr('r', this.settings.dotRadius)
@@ -646,7 +662,7 @@ export class LineChart implements LineChartHandle {
       dots.exit<DataPoint>()
         .transition()
         .duration(duration)
-        .ease(d3.easeCubicOut)
+        .ease(ease)
         .attr('r', 0)
         .remove()
     } else if (mode === 'transition' && duration > 0) {

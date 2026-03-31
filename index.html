@@ -50,11 +50,28 @@
       <span class="section-label">Rolling window</span>
       <div class="control-group">
         <label for="max-data-points">Max points</label>
-        <input type="number" id="max-data-points" placeholder="unlimited" min="1" step="1" />
+        <input type="number" id="max-data-points" value="60" min="1" step="1" />
       </div>
       <div class="control-group">
         <label for="edge-fade-width">Edge fade (px)</label>
         <input type="number" id="edge-fade-width" value="0" min="0" step="5" />
+      </div>
+
+      <span class="section-label">Line</span>
+      <div class="control-group">
+        <label for="curve-type">Curve</label>
+        <select id="curve-type">
+          <option value="linear">linear</option>
+          <option value="monotoneX" selected>monotoneX</option>
+          <option value="monotoneY">monotoneY</option>
+          <option value="natural">natural</option>
+          <option value="basis">basis</option>
+          <option value="cardinal">cardinal</option>
+          <option value="catmullRom">catmullRom</option>
+          <option value="step">step</option>
+          <option value="stepBefore">stepBefore</option>
+          <option value="stepAfter">stepAfter</option>
+        </select>
       </div>
 
       <span class="section-label">Animation</span>
@@ -86,7 +103,38 @@
           <option value="drawOn">drawOn</option>
           <option value="transition">transition</option>
           <option value="morph">morph</option>
-          <option value="none" selected>none</option>
+          <option value="transition" selected>transition</option>
+          <option value="none">none</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="anim-easing">Easing</label>
+        <select id="anim-easing">
+          <option value="easeLinear">easeLinear</option>
+          <option value="easeQuadIn">easeQuadIn</option>
+          <option value="easeQuadOut">easeQuadOut</option>
+          <option value="easeQuadInOut">easeQuadInOut</option>
+          <option value="easeCubicIn">easeCubicIn</option>
+          <option value="easeCubicOut">easeCubicOut</option>
+          <option value="easeCubicInOut" selected>easeCubicInOut</option>
+          <option value="easeSinIn">easeSinIn</option>
+          <option value="easeSinOut">easeSinOut</option>
+          <option value="easeSinInOut">easeSinInOut</option>
+          <option value="easeExpIn">easeExpIn</option>
+          <option value="easeExpOut">easeExpOut</option>
+          <option value="easeExpInOut">easeExpInOut</option>
+          <option value="easeCircleIn">easeCircleIn</option>
+          <option value="easeCircleOut">easeCircleOut</option>
+          <option value="easeCircleInOut">easeCircleInOut</option>
+          <option value="easeBackIn">easeBackIn</option>
+          <option value="easeBackOut">easeBackOut</option>
+          <option value="easeBackInOut">easeBackInOut</option>
+          <option value="easeBounceIn">easeBounceIn</option>
+          <option value="easeBounceOut">easeBounceOut</option>
+          <option value="easeBounceInOut">easeBounceInOut</option>
+          <option value="easeElasticIn">easeElasticIn</option>
+          <option value="easeElasticOut">easeElasticOut</option>
+          <option value="easeElasticInOut">easeElasticInOut</option>
         </select>
       </div>
     </div>
