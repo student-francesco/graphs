@@ -72,6 +72,7 @@ export class LineChart implements LineChartHandle {
   private axisOverlayG: d3.Selection<SVGGElement, unknown, null, undefined> | null = null
 
   private pendingExitPoints: DataPoint[] = []
+  private prevXScale: d3.ScaleTime<number, number> | null = null
 
   constructor(divId: string, settings?: Partial<ChartSettings>) {
     const el = document.getElementById(divId)
@@ -231,11 +232,16 @@ export class LineChart implements LineChartHandle {
       overlap >= this.settings.minOverlapForTransition &&
       ratio >= this.settings.overlapThreshold
 
+    // Compute exit points for visual continuity during animated transitions
+    const incomingSet = new Set(incoming.map(p => p.date.getTime()))
+    this.pendingExitPoints = this.data.filter(p => !incomingSet.has(p.date.getTime()))
+
     this.data = incoming
 
     if (sufficient) {
       this.render(this.settings.updateDataAnimation)
     } else {
+      this.pendingExitPoints = []
       this.innerG.selectAll('.lc-line,.lc-dots,.lc-dot,.lc-hover-zone').remove()
       this.render(this.settings.updateDataAnimation)
     }
@@ -450,6 +456,27 @@ export class LineChart implements LineChartHandle {
     // lc-scroll-container: inside chart area; only this element gets translateX
     const scrollContainer = this.getOrCreateScrollContainer(chartArea)
 
+    // --- Pre-compute and apply scroll shift for transition mode ---
+    // This MUST happen before rendering content so elements never appear at
+    // un-shifted new-scale positions (which would cause a visible snap).
+    let scrollStartX = 0
+    if (mode === 'transition' && duration > 0) {
+      scrollContainer.interrupt()
+      const raw = scrollContainer.attr('transform') || ''
+      const m = raw.match(/translate\(\s*([-\d.e]+)/)
+      const currentScrollX = m ? parseFloat(m[1]) : 0
+
+      if (this.prevXScale && this.data.length > 0) {
+        const refDate = this.data[0].date
+        scrollStartX = (this.prevXScale(refDate) - xScale(refDate)) + currentScrollX
+      }
+
+      scrollContainer.attr('transform',
+        Math.abs(scrollStartX) > 0.5
+          ? `translate(${scrollStartX}, 0)`
+          : 'translate(0, 0)')
+    }
+
     renderAxes({
       g: this.axisOverlayG ?? this.innerG,
       chartAreaG: chartArea,
@@ -470,24 +497,23 @@ export class LineChart implements LineChartHandle {
       this.renderHoverZones(scrollContainer, xScale, yScale)
     }
 
-    // Container scroll (transition mode only)
+    // Animate scroll container to origin (transition mode) or reset (other modes)
     if (mode === 'transition' && duration > 0) {
-      const shiftX = this.pendingExitPoints.length > 0
-        ? -xScale(this.pendingExitPoints[0].date)
-        : 0
-      if (shiftX > 0) {
-        scrollContainer.interrupt()
-        scrollContainer.attr('transform', `translate(${shiftX}, 0)`)
+      if (Math.abs(scrollStartX) > 0.5) {
         scrollContainer
           .transition()
           .duration(duration)
           .ease(d3.easeCubicInOut)
           .attr('transform', 'translate(0, 0)')
+      } else {
+        scrollContainer.attr('transform', 'translate(0, 0)')
       }
     } else {
       // Reset any lingering scroll transform (resize, settings change, etc.)
       scrollContainer.interrupt().attr('transform', 'translate(0, 0)')
     }
+
+    this.prevXScale = xScale
 
     // Keep a small number of exit points so the blur is not disturbed
     this.pendingExitPoints.splice(0, this.pendingExitPoints.length - 4);
@@ -616,8 +642,23 @@ export class LineChart implements LineChartHandle {
         .attr('r', this.settings.dotRadius)
     }
 
-    // Dots only exit when their point leaves pendingExitPoints (via splice); remove immediately.
-    dots.exit().remove()
+    if (mode === 'morph' && duration > 0) {
+      dots.exit<DataPoint>()
+        .transition()
+        .duration(duration)
+        .ease(d3.easeCubicOut)
+        .attr('r', 0)
+        .remove()
+    } else if (mode === 'transition' && duration > 0) {
+      // Keep exit dots visible during scroll animation, then remove
+      dots.exit()
+        .transition()
+        .delay(duration)
+        .duration(0)
+        .remove()
+    } else {
+      dots.exit().remove()
+    }
   }
 
   private renderHoverZones(
