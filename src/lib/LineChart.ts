@@ -64,6 +64,12 @@ export class LineChart implements LineChartHandle {
   private fadeStopRight1: d3.Selection<SVGStopElement, unknown, null, undefined>
   private fadeStopRight: d3.Selection<SVGStopElement, unknown, null, undefined>
   private fadeMaskRect: d3.Selection<SVGRectElement, unknown, null, undefined>
+  private fadeBlurLeft!: HTMLDivElement
+  private fadeBlurRight!: HTMLDivElement
+
+  // Render y-axis above blur
+  private axisOverlaySvg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null
+  private axisOverlayG: d3.Selection<SVGGElement, unknown, null, undefined> | null = null
 
   private pendingExitPoints: DataPoint[] = []
 
@@ -107,11 +113,12 @@ export class LineChart implements LineChartHandle {
     const grad = defs
       .append('linearGradient')
       .attr('id', this.fadeGradId)
-      .attr('gradientUnits', 'userSpaceOnUse')
-      .attr('x1', 0)
-      .attr('y1', 0)
-      .attr('x2', this.innerWidth)
-      .attr('y2', 0)
+      // objectBoundingBox (default) — stop offsets are fractions of the mask rect's width,
+      // so they stay correct regardless of coordinate transforms.
+      .attr('x1', '0%')
+      .attr('y1', '0%')
+      .attr('x2', '100%')
+      .attr('y2', '0%')
 
     this.fadeStopLeft  = grad.append('stop')
     this.fadeStopLeft2 = grad.append('stop')
@@ -133,6 +140,51 @@ export class LineChart implements LineChartHandle {
       .attr('class', 'lc-inner')
       .attr('transform', `translate(${this.settings.margins.left},${this.settings.margins.top})`)
 
+    // Ensure container is a positioning context for the blur overlays
+    if (getComputedStyle(this.container).position === 'static') {
+      this.container.style.position = 'relative'
+    }
+
+    const blurStrength = 6;
+    const blurEnd = 90;
+    const blurStyle =
+      'position:absolute;top:0;height:100%;pointer-events:none;z-index:1;' +
+      `backdrop-filter:blur(${blurStrength}px);-webkit-backdrop-filter:blur(${blurStrength}px)`
+
+    this.fadeBlurLeft = document.createElement('div')
+    this.fadeBlurLeft.style.cssText =
+      blurStyle +
+      `;mask-image:linear-gradient(to right,black 0%,black ${blurEnd}%,transparent 100%)` +
+      `;-webkit-mask-image:linear-gradient(to right,black 0%,black ${blurEnd}%,transparent 100%)`
+    this.container.appendChild(this.fadeBlurLeft)
+
+    this.fadeBlurRight = document.createElement('div')
+    this.fadeBlurRight.style.cssText =
+      blurStyle +
+      ';mask-image:linear-gradient(to left,black 0%,black 75%,transparent 100%)' +
+      ';-webkit-mask-image:linear-gradient(to left,black 0%,black 75%,transparent 100%)'
+    this.container.appendChild(this.fadeBlurRight)
+
+    // Overlay SVG sits above the blur divs (z-index 2) and contains only the y-axis,
+    this.axisOverlaySvg = d3
+      .select(this.container)
+      .append('svg')
+      .attr('width', '100%')
+      .attr('height', '100%')
+      .attr('viewBox', `0 0 ${this.width} ${this.height}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .attr('aria-hidden', 'true')
+      .style('position', 'absolute')
+      .style('top', '0')
+      .style('left', '0')
+      .style('pointer-events', 'none')
+      .style('z-index', '2')
+
+    this.axisOverlayG = this.axisOverlaySvg
+      .append('g')
+      .attr('class', 'lc-axis-overlay')
+      .attr('transform', `translate(${this.settings.margins.left},${this.settings.margins.top})`)
+
     renderSkeleton(this.svg, this.width, this.height, this.settings.margins)
 
     this.resizeObserver = new ResizeObserver(entries => {
@@ -143,6 +195,7 @@ export class LineChart implements LineChartHandle {
       this.width = width
       this.height = height
       this.svg.attr('viewBox', `0 0 ${width} ${height}`)
+      this.axisOverlaySvg?.attr('viewBox', `0 0 ${width} ${height}`)
       if (this.data.length > 0) this.render('none')
     })
     this.resizeObserver.observe(this.container)
@@ -245,6 +298,9 @@ export class LineChart implements LineChartHandle {
     this.resizeObserver?.disconnect()
     this.tooltip?.destroy()
     this.svg.remove()
+    this.axisOverlaySvg?.remove()
+    this.fadeBlurLeft.remove()
+    this.fadeBlurRight.remove()
   }
 
   // ---------------------------------------------------------------------------
@@ -274,7 +330,8 @@ export class LineChart implements LineChartHandle {
   private trimToMaxPoints(): DataPoint[] {
     const max = this.settings.maxDataPoints
     if (max === null || max <= 0 || this.data.length <= max) return []
-    return this.data.splice(0, this.data.length - max)
+    const newExit = this.data.splice(0, this.data.length - max);
+    return this.pendingExitPoints.concat(newExit)
   }
 
   /**
@@ -307,33 +364,49 @@ export class LineChart implements LineChartHandle {
   private updateFadeMask(chartArea: d3.Selection<SVGGElement, unknown, null, undefined>): void {
     const fw = this.settings.edgeFadeWidth
     const w = this.innerWidth
+    // Left fade: always active. Clip + fade-to-transparent starts halfway between the
+    // SVG left edge and the y-axis (i.e. margins.left / 2 to the left of x=0).
+    const leftExt = this.settings.margins.left / 2
 
-    this.svg.select(`#${this.fadeGradId}`).attr('x2', w)
-
-    const opaque = 'white'
-    this.fadeStopLeft
-      .attr('offset', 0)
-      .attr('stop-color', opaque)
-      .attr('stop-opacity', fw > 0 ? 0 : 1)
-    this.fadeStopLeft2
-      .attr('offset', Math.min(fw, w * 0.5))
-      .attr('stop-color', opaque)
-      .attr('stop-opacity', 1)
-    this.fadeStopRight1
-      .attr('offset', Math.max(w - fw, w * 0.5))
-      .attr('stop-color', opaque)
-      .attr('stop-opacity', 1)
-    this.fadeStopRight
-      .attr('offset', w)
-      .attr('stop-color', opaque)
-      .attr('stop-opacity', fw > 0 ? 0 : 1)
-
+    // Mask rect spans from the left clip boundary to the right chart edge.
+    // Extends vertically to cover x-axis tick marks and labels below innerHeight.
     this.fadeMaskRect
-      .attr('width', w)
+      .attr('x', -leftExt)
+      .attr('y', -20)
+      .attr('width', w + leftExt)
       .attr('height', this.innerHeight + 40)
 
-    // Mask lives on the static chart area so it never moves during container scroll
-    chartArea.attr('mask', fw > 0 ? `url(#${this.fadeMaskId})` : null)
+    // With objectBoundingBox the stop offsets are fractions of the mask rect width.
+    // 0% = left clip edge (x = -leftExt)   →  opacity 0 (fully transparent)
+    // yAxisFrac = y-axis position (x = 0)  →  opacity 1 (fully opaque)
+    // rightFrac = right-fade start          →  opacity 1
+    // 100% = right edge (x = innerWidth)   →  opacity 0 if edgeFadeWidth > 0, else 1
+    const totalW = w + leftExt
+    const yAxisFrac = (leftExt / totalW * 100).toFixed(3)
+    const rightFrac = fw > 0
+      ? ((w - fw + leftExt) / totalW * 100).toFixed(3)
+      : '100'
+
+    this.fadeStopLeft.attr('offset', '0%').attr('stop-color', 'white').attr('stop-opacity', 0.12)
+    this.fadeStopLeft2.attr('offset', `${yAxisFrac}%`).attr('stop-color', 'white').attr('stop-opacity', 1)
+    this.fadeStopRight1.attr('offset', `${rightFrac}%`).attr('stop-color', 'white').attr('stop-opacity', 1)
+    this.fadeStopRight.attr('offset', '100%').attr('stop-color', 'white').attr('stop-opacity', fw > 0 ? 0.12 : 1)
+
+    // Left fade is always active; apply mask unconditionally.
+    chartArea.attr('mask', `url(#${this.fadeMaskId})`)
+
+    // Position the HTML blur overlays to match the fade zones.
+    // Since viewBox = container dimensions, SVG units ≈ CSS pixels.
+    this.fadeBlurLeft.style.left = '0'
+    this.fadeBlurLeft.style.width = `${this.settings.margins.left}px`
+
+    if (fw > 0) {
+      this.fadeBlurRight.style.display = 'block'
+      this.fadeBlurRight.style.right = `${this.settings.margins.right}px`
+      this.fadeBlurRight.style.width = `${fw}px`
+    } else {
+      this.fadeBlurRight.style.display = 'none'
+    }
   }
 
   private buildScales(): {
@@ -358,14 +431,16 @@ export class LineChart implements LineChartHandle {
     const { xScale, yScale } = this.buildScales()
     const curve = CURVE_MAP[this.settings.curveType]
 
-    this.innerG.attr(
-      'transform',
-      `translate(${this.settings.margins.left},${this.settings.margins.top})`,
-    )
+    const innerTransform = `translate(${this.settings.margins.left},${this.settings.margins.top})`
+    this.innerG.attr('transform', innerTransform)
+    this.axisOverlayG?.attr('transform', innerTransform)
 
+    const leftExt = this.settings.margins.left / 2
+    const yAxisLabels = 32 // approximated
     this.clipRect
-      .attr('width', this.innerWidth)
-      .attr('height', this.innerHeight)
+      .attr('x', -leftExt)
+      .attr('width', this.innerWidth + leftExt)
+      .attr('height', this.innerHeight + yAxisLabels)
 
     // lc-chart-area: static wrapper with clip-path + mask — must exist before
     // renderAxes so the y-axis (appended to innerG) renders on top of it.
@@ -376,7 +451,8 @@ export class LineChart implements LineChartHandle {
     const scrollContainer = this.getOrCreateScrollContainer(chartArea)
 
     renderAxes({
-      g: this.innerG,
+      g: this.axisOverlayG ?? this.innerG,
+      chartAreaG: chartArea,
       scrollG: scrollContainer,
       xScale,
       yScale,
@@ -413,7 +489,8 @@ export class LineChart implements LineChartHandle {
       scrollContainer.interrupt().attr('transform', 'translate(0, 0)')
     }
 
-    this.pendingExitPoints = []
+    // Keep a small number of exit points so the blur is not disturbed
+    this.pendingExitPoints.splice(0, this.pendingExitPoints.length - 4);
   }
 
   private renderLine(
@@ -501,9 +578,14 @@ export class LineChart implements LineChartHandle {
       return
     }
 
+    const joinData =
+      this.pendingExitPoints.length > 0
+        ? [...this.pendingExitPoints, ...this.data]
+        : this.data
+
     const dots = scrollContainer
       .selectAll<SVGCircleElement, DataPoint>('.lc-dot')
-      .data(this.data, d => d.date.getTime())
+      .data(joinData, d => d.date.getTime())
 
     const enter = dots
       .enter()
@@ -534,34 +616,8 @@ export class LineChart implements LineChartHandle {
         .attr('r', this.settings.dotRadius)
     }
 
-    const exitSel = dots.exit<DataPoint>()
-
-    if (mode === 'morph' && duration > 0) {
-      exitSel
-        .transition()
-        .duration(duration)
-        .ease(d3.easeCubicInOut)
-        .attr('cx', d => xScale(d.date))
-        .attr('cy', d => yScale(d.value))
-        .attr('r', 0)
-        .remove()
-    } else if (mode === 'transition' && duration > 0) {
-      // Update exit dot positions to their new-scale coordinates (negative x).
-      // The container scroll will carry them off-screen; remove after scroll completes.
-      exitSel
-        .attr('cx', d => xScale(d.date))
-        .attr('cy', d => yScale(d.value))
-        .transition()
-        .delay(duration)
-        .duration(0)
-        .remove()
-    } else {
-      exitSel
-        .transition()
-        .duration(mode !== 'none' && duration > 0 ? duration / 2 : 0)
-        .attr('r', 0)
-        .remove()
-    }
+    // Dots only exit when their point leaves pendingExitPoints (via splice); remove immediately.
+    dots.exit().remove()
   }
 
   private renderHoverZones(

@@ -2,9 +2,11 @@ import * as d3 from 'd3'
 import type { AnimationMode, ChartSettings } from './types.ts'
 
 export interface AxesConfig {
-  /** Container for the fixed y-axis (stays outside the scroll container) */
+  /** Container for the fixed y-axis (stays in innerG, outside chart area) */
   g: d3.Selection<SVGGElement, unknown, null, undefined>
-  /** Container for grids and x-axis ticks (inside the scroll container) */
+  /** Container for the static x-axis baseline line (lc-chart-area — clipped but never scrolls) */
+  chartAreaG: d3.Selection<SVGGElement, unknown, null, undefined>
+  /** Container for grids and x-axis ticks (lc-scroll-container — scrolls with data) */
   scrollG: d3.Selection<SVGGElement, unknown, null, undefined>
   xScale: d3.ScaleTime<number, number>
   yScale: d3.ScaleLinear<number, number>
@@ -16,12 +18,11 @@ export interface AxesConfig {
 }
 
 export function renderAxes(config: AxesConfig): void {
-  const { g, scrollG, xScale, yScale, innerWidth, innerHeight, settings, mode, duration } = config
+  const { g, chartAreaG, scrollG, xScale, yScale, innerWidth, innerHeight, settings, mode, duration } = config
   const animate = mode !== 'none'
-  // In transition mode the container scroll drives all horizontal motion — axis
-  // elements must be placed at their final positions instantly so they move in
-  // unison with the container, not via a competing D3 transition.
-  const animateXContent = animate && mode !== 'transition'
+  // In transition mode the container scroll drives all horizontal motion — elements
+  // must snap to their final positions so they move as one unit with the container.
+  const animateScrollContent = animate && mode !== 'transition'
 
   // ---- Grid ----
   if (settings.showGrid) {
@@ -40,7 +41,7 @@ export function renderAxes(config: AxesConfig): void {
         .attr('stroke-dasharray', '3,3')
     }
 
-    if (animateXContent) {
+    if (animateScrollContent) {
       yGridEl.transition().duration(duration).call(applyYGrid as never)
     } else {
       applyYGrid(yGridEl)
@@ -62,7 +63,7 @@ export function renderAxes(config: AxesConfig): void {
         .attr('stroke-dasharray', '3,3')
     }
 
-    if (animateXContent) {
+    if (animateScrollContent) {
       xGridEl.transition().duration(duration).call(applyXGrid as never)
     } else {
       applyXGrid(xGridEl)
@@ -71,7 +72,19 @@ export function renderAxes(config: AxesConfig): void {
     scrollG.selectAll('.lc-grid-x,.lc-grid-y').remove()
   }
 
-  // ---- X Axis ticks (data-join — managed like dots) ----
+  // ---- X Axis baseline (static — lives in chart area, never scrolls) ----
+  const baseline = chartAreaG.select<SVGLineElement>('.lc-x-axis-line')
+  const baselineEl = baseline.empty()
+    ? chartAreaG.append('line').attr('class', 'lc-x-axis-line')
+    : baseline
+  baselineEl
+    .attr('stroke', 'currentColor')
+    .attr('x1', 0)
+    .attr('y1', innerHeight)
+    .attr('x2', innerWidth)
+    .attr('y2', innerHeight)
+
+  // ---- X Axis ticks (data-join — managed like dots, inside scroll container) ----
   const ticks = xScale.ticks()
   const defaultFormatter = xScale.tickFormat()
   const formatTick = (d: Date, i: number): string =>
@@ -81,7 +94,7 @@ export function renderAxes(config: AxesConfig): void {
     .selectAll<SVGGElement, Date>('.lc-x-tick')
     .data(ticks, d => d.getTime())
 
-  // Enter: new ticks start at their final x position
+  // Enter: new ticks placed at their final x position immediately
   const enterG = tickSel
     .enter()
     .append('g')
@@ -104,43 +117,29 @@ export function renderAxes(config: AxesConfig): void {
     .text((d, i) => formatTick(d, i))
 
   const merged = enterG.merge(tickSel)
-
-  // Update text for all visible ticks
   merged.select('text').text((d, i) => formatTick(d, i))
 
-  if (animateXContent && duration > 0) {
-    merged
-      .transition()
-      .duration(duration)
-      .attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
-    tickSel.exit().remove()
-  } else if (mode === 'transition') {
-    // Snap to final positions; the container scroll carries everything together
+  if (mode === 'transition') {
+    // Snap all ticks to their final positions — the container scroll carries them.
     merged.attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
-    // Exit ticks stay in DOM until the container scroll completes, then are removed
+    // Keep exit ticks in the DOM until the container scroll finishes, then remove.
     tickSel.exit<Date>()
       .transition()
       .delay(duration)
       .duration(0)
       .remove()
+  } else if (animateScrollContent && duration > 0) {
+    merged
+      .transition()
+      .duration(duration)
+      .attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
+    tickSel.exit().remove()
   } else {
     merged.attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
     tickSel.exit().remove()
   }
 
-  // Axis baseline — extended well beyond visible range so clipping handles edges cleanly
-  const baseline = scrollG.select<SVGLineElement>('.lc-x-axis-line')
-  const baselineEl = baseline.empty()
-    ? scrollG.append('line').attr('class', 'lc-x-axis-line')
-    : baseline
-  baselineEl
-    .attr('stroke', 'currentColor')
-    .attr('x1', -innerWidth)
-    .attr('y1', innerHeight)
-    .attr('x2', innerWidth * 2)
-    .attr('y2', innerHeight)
-
-  // ---- Y Axis (fixed, outside scroll container) ----
+  // ---- Y Axis (fixed, in innerG — rendered on top of chart area) ----
   const yAxisGen = d3.axisLeft(yScale)
   if (settings.yAxisFormatter !== null) {
     yAxisGen.tickFormat((d, i) => settings.yAxisFormatter!(d as number, i))
