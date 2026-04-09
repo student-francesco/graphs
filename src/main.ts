@@ -139,6 +139,12 @@ document.getElementById('btn-toggle-grid')!.addEventListener('click', () => {
   setLog(`updateSettings({ showGrid: ${gridOn} })`)
 })
 
+const gridColorInput = document.getElementById('grid-color') as HTMLInputElement
+gridColorInput.addEventListener('input', () => {
+  chart.updateSettings({ gridColor: gridColorInput.value })
+  setLog(`updateSettings({ gridColor: "${gridColorInput.value}" })`)
+})
+
 // ---------------------------------------------------------------------------
 // Animation settings
 // ---------------------------------------------------------------------------
