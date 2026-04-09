@@ -35,6 +35,8 @@ const chart = createLineChart('chart-container', {
   dotRadius: 4,
   showTooltip: true,
   animationDuration: 1000,
+  appendAnimation: 'transition',
+  maxDataPoints: 60,
 })
 
 const log = document.getElementById('log')!
@@ -72,6 +74,25 @@ document.getElementById('btn-append')!.addEventListener('click', () => {
   currentData.push(point)
   chart.appendDataPoint(point)
   setLog(`appendDataPoint({ date: "${point.date}", value: ${point.value.toFixed(2)} })`)
+})
+
+let autoAppendTimer: ReturnType<typeof setInterval> | null = null
+const btnAutoAppend = document.getElementById('btn-auto-append')!
+btnAutoAppend.addEventListener('click', () => {
+  if (autoAppendTimer !== null) {
+    clearInterval(autoAppendTimer)
+    autoAppendTimer = null
+    btnAutoAppend.textContent = 'Auto'
+    btnAutoAppend.classList.remove('active')
+    setLog('Auto-append stopped.')
+  } else {
+    autoAppendTimer = setInterval(() => {
+      document.getElementById('btn-append')!.click()
+    }, 250)
+    btnAutoAppend.textContent = 'Stop'
+    btnAutoAppend.classList.add('active')
+    setLog('Auto-append running every 250 ms…')
+  }
 })
 
 document.getElementById('btn-append-batch')!.addEventListener('click', () => {
@@ -117,3 +138,53 @@ document.getElementById('btn-toggle-grid')!.addEventListener('click', () => {
   chart.updateSettings({ showGrid: gridOn })
   setLog(`updateSettings({ showGrid: ${gridOn} })`)
 })
+
+// ---------------------------------------------------------------------------
+// Animation settings
+// ---------------------------------------------------------------------------
+
+const curveTypeSelect = document.getElementById('curve-type') as HTMLSelectElement
+curveTypeSelect.addEventListener('change', () => {
+  const curveType = curveTypeSelect.value as CurveType
+  chart.updateSettings({ curveType })
+  setLog(`updateSettings({ curveType: "${curveType}" })`)
+})
+
+const animDurationInput = document.getElementById('anim-duration') as HTMLInputElement
+const animSetDataSelect = document.getElementById('anim-set-data') as HTMLSelectElement
+const animUpdateDataSelect = document.getElementById('anim-update-data') as HTMLSelectElement
+const animAppendSelect = document.getElementById('anim-append') as HTMLSelectElement
+const animEasingSelect = document.getElementById('anim-easing') as HTMLSelectElement
+
+import type { AnimationMode, CurveType, EasingType } from './lib/types.ts'
+
+function syncAnimationSettings() {
+  const duration = Math.max(0, parseInt(animDurationInput.value, 10) || 0)
+  const setDataAnimation = animSetDataSelect.value as AnimationMode
+  const updateDataAnimation = animUpdateDataSelect.value as AnimationMode
+  const appendAnimation = animAppendSelect.value as AnimationMode
+  const easingType = animEasingSelect.value as EasingType
+  chart.updateSettings({ animationDuration: duration, setDataAnimation, updateDataAnimation, appendAnimation, easingType })
+  setLog(`updateSettings({ animationDuration: ${duration}, setDataAnimation: "${setDataAnimation}", updateDataAnimation: "${updateDataAnimation}", appendAnimation: "${appendAnimation}", easingType: "${easingType}" })`)
+}
+
+const maxDataPointsInput = document.getElementById('max-data-points') as HTMLInputElement
+maxDataPointsInput.addEventListener('change', () => {
+  const raw = maxDataPointsInput.value.trim()
+  const maxDataPoints = raw === '' ? null : Math.max(1, parseInt(raw, 10) || 1)
+  chart.updateSettings({ maxDataPoints })
+  setLog(`updateSettings({ maxDataPoints: ${maxDataPoints ?? 'null'} })`)
+})
+
+const edgeFadeWidthInput = document.getElementById('edge-fade-width') as HTMLInputElement
+edgeFadeWidthInput.addEventListener('change', () => {
+  const edgeFadeWidth = Math.max(0, parseInt(edgeFadeWidthInput.value, 10) || 0)
+  chart.updateSettings({ edgeFadeWidth })
+  setLog(`updateSettings({ edgeFadeWidth: ${edgeFadeWidth} })`)
+})
+
+animDurationInput.addEventListener('change', syncAnimationSettings)
+animSetDataSelect.addEventListener('change', syncAnimationSettings)
+animUpdateDataSelect.addEventListener('change', syncAnimationSettings)
+animAppendSelect.addEventListener('change', syncAnimationSettings)
+animEasingSelect.addEventListener('change', syncAnimationSettings)

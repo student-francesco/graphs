@@ -4,6 +4,7 @@ export type {
   ChartSettings,
   ChartMargins,
   CurveType,
+  AnimationMode,
   LineChartHandle,
 } from './types.ts'
 export { DEFAULT_SETTINGS } from './defaults.ts'

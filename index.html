@@ -16,20 +16,127 @@
       button:hover { background: #f3f4f6; }
       #chart-container { width: 100%; height: 400px; background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; }
       #log { margin-top: 16px; font-size: 12px; color: #6b7280; }
+      .section-label { font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; width: 100%; margin-top: 4px; }
+      .control-group { display: flex; align-items: center; gap: 6px; }
+      .control-group label { font-size: 12px; color: #374151; white-space: nowrap; }
+      .btn-group { display: flex; border-radius: 6px; border: 1px solid #d1d5db; overflow: hidden; }
+      .btn-group button { border-radius: 0; border: none; border-right: 1px solid #e5e7eb; }
+      .btn-group button:last-child { border-right: none; }
+      button.active { background: #f0fdf4; color: #16a34a; }
+      select, input[type="number"] {
+        padding: 5px 8px; border-radius: 6px; border: 1px solid #d1d5db;
+        background: #fff; font-size: 12px; color: #111827;
+      }
+      input[type="number"] { width: 72px; }
     </style>
   </head>
   <body>
     <h1>LineChart Dev Harness</h1>
     <div class="controls">
+      <span class="section-label">Actions</span>
       <button id="btn-red">Red line</button>
       <button id="btn-blue">Blue line</button>
-      <button id="btn-append">Append 1 point</button>
+      <div class="btn-group">
+        <button id="btn-append">Append 1 point</button>
+        <button id="btn-auto-append">Auto</button>
+      </div>
       <button id="btn-append-batch">Append 5 points</button>
       <button id="btn-update">Simulate live window</button>
       <button id="btn-clear">Clear</button>
       <button id="btn-reload">Reload data</button>
       <button id="btn-no-dots">Toggle dots</button>
       <button id="btn-toggle-grid">Toggle grid</button>
+
+      <span class="section-label">Rolling window</span>
+      <div class="control-group">
+        <label for="max-data-points">Max points</label>
+        <input type="number" id="max-data-points" value="60" min="1" step="1" />
+      </div>
+      <div class="control-group">
+        <label for="edge-fade-width">Edge fade (px)</label>
+        <input type="number" id="edge-fade-width" value="0" min="0" step="5" />
+      </div>
+
+      <span class="section-label">Line</span>
+      <div class="control-group">
+        <label for="curve-type">Curve</label>
+        <select id="curve-type">
+          <option value="linear">linear</option>
+          <option value="monotoneX" selected>monotoneX</option>
+          <option value="monotoneY">monotoneY</option>
+          <option value="natural">natural</option>
+          <option value="basis">basis</option>
+          <option value="cardinal">cardinal</option>
+          <option value="catmullRom">catmullRom</option>
+          <option value="step">step</option>
+          <option value="stepBefore">stepBefore</option>
+          <option value="stepAfter">stepAfter</option>
+        </select>
+      </div>
+
+      <span class="section-label">Animation</span>
+      <div class="control-group">
+        <label for="anim-duration">Duration (ms)</label>
+        <input type="number" id="anim-duration" value="750" min="0" step="50" />
+      </div>
+      <div class="control-group">
+        <label for="anim-set-data">setData</label>
+        <select id="anim-set-data">
+          <option value="drawOn" selected>drawOn</option>
+          <option value="transition">transition</option>
+          <option value="morph">morph</option>
+          <option value="none">none</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="anim-update-data">updateData</label>
+        <select id="anim-update-data">
+          <option value="drawOn">drawOn</option>
+          <option value="transition">transition</option>
+          <option value="morph" selected>morph</option>
+          <option value="none">none</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="anim-append">append</label>
+        <select id="anim-append">
+          <option value="drawOn">drawOn</option>
+          <option value="transition">transition</option>
+          <option value="morph">morph</option>
+          <option value="transition" selected>transition</option>
+          <option value="none">none</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="anim-easing">Easing</label>
+        <select id="anim-easing">
+          <option value="easeLinear">easeLinear</option>
+          <option value="easeQuadIn">easeQuadIn</option>
+          <option value="easeQuadOut">easeQuadOut</option>
+          <option value="easeQuadInOut">easeQuadInOut</option>
+          <option value="easeCubicIn">easeCubicIn</option>
+          <option value="easeCubicOut">easeCubicOut</option>
+          <option value="easeCubicInOut" selected>easeCubicInOut</option>
+          <option value="easeSinIn">easeSinIn</option>
+          <option value="easeSinOut">easeSinOut</option>
+          <option value="easeSinInOut">easeSinInOut</option>
+          <option value="easeExpIn">easeExpIn</option>
+          <option value="easeExpOut">easeExpOut</option>
+          <option value="easeExpInOut">easeExpInOut</option>
+          <option value="easeCircleIn">easeCircleIn</option>
+          <option value="easeCircleOut">easeCircleOut</option>
+          <option value="easeCircleInOut">easeCircleInOut</option>
+          <option value="easeBackIn">easeBackIn</option>
+          <option value="easeBackOut">easeBackOut</option>
+          <option value="easeBackInOut">easeBackInOut</option>
+          <option value="easeBounceIn">easeBounceIn</option>
+          <option value="easeBounceOut">easeBounceOut</option>
+          <option value="easeBounceInOut">easeBounceInOut</option>
+          <option value="easeElasticIn">easeElasticIn</option>
+          <option value="easeElasticOut">easeElasticOut</option>
+          <option value="easeElasticInOut">easeElasticInOut</option>
+        </select>
+      </div>
     </div>
     <div id="chart-container"></div>
     <div id="log">Loading data in 1.5s…</div>

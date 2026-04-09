@@ -20,7 +20,7 @@ export function renderSkeleton(
   const innerH = height - margins.top - margins.bottom
 
   // <defs> with shimmer gradient using SVG-native animation (no external CSS)
-  const defs = svg.append('defs')
+  const defs = svg.append('defs').attr('class', 'lc-skeleton-defs')
   const gradient = defs
     .append('linearGradient')
     .attr('id', gradientId)
@@ -89,6 +89,6 @@ export function renderSkeleton(
 }
 
 export function removeSkeleton(svg: SvgSelection): void {
-  svg.select('defs').remove()
+  svg.select('.lc-skeleton-defs').remove()
   svg.select(`.${SKELETON_CLASS}`).remove()
 }

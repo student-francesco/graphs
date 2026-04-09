@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: ChartSettings = {
   tooltipValueFormat: '.2f',
 
   animationDuration: 750,
+  easingType: 'easeCubicInOut',
 
   margins: { top: 20, right: 30, bottom: 40, left: 60 },
 
@@ -25,4 +26,12 @@ export const DEFAULT_SETTINGS: ChartSettings = {
 
   minOverlapForTransition: 2,
   overlapThreshold: 0.3,
+
+  setDataAnimation: 'drawOn',
+  updateDataAnimation: 'morph',
+  appendAnimation: 'none',
+
+  maxDataPoints: null,
+
+  edgeFadeWidth: 0,
 }
