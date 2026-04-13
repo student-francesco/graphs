@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+    <metadata>
+        <id>Graphs</id>
+        <version>0.0.0</version>
+        <authors>Francesco Baciu</authors>
+        <owners>INFICON AG</owners>
+        <description>JavaScript module file for D3 graphs</description>
+        <requireLicenseAcceptance>false</requireLicenseAcceptance>
+        <readme>README.MD</readme>
+    </metadata>
+    <files>
+        <file src="dist\lib\graphs.es.js" target="content\Scripts\graphs.es.js" />
+        <file src="README.MD" target="" />
+    </files>
+</package>
