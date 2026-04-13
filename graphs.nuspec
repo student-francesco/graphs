@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
     <metadata>
         <id>Graphs</id>
-        <version>0.0.1</version>
+        <version>0.0.2</version>
         <authors>Francesco Baciu</authors>
         <owners>INFICON AG</owners>
         <description>JavaScript module file for D3 graphs</description>
@@ -11,6 +11,7 @@
     </metadata>
     <files>
         <file src="dist\lib\graphs.es.js" target="content\Scripts\graphs.es.js" />
+        <file src="Graphs.targets" target="build\Graphs.targets" />
         <file src="README.MD" target="" />
     </files>
 </package>

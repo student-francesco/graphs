@@ -1,0 +1,8 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Target Name="CopyGraphsToWwwroot" AfterTargets="Build">
+    <Message Importance="high" Text="Copying graphs.es.js from NuGet package to wwwroot..." />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\content\Scripts\graphs.es.js" 
+          DestinationFiles="$(MSBuildProjectDirectory)\wwwroot\graphs.es.js" 
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

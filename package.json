@@ -1,13 +1,13 @@
 {
   "name": "graphs",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "build:lib": "tsc --noEmit && vite build --config vite.config.lib.ts",
-    "build:nuget": "npm run build:lib && nuget.exe pack graphs.nuspec && nuget.exe push Graphs.0.0.1.nupkg -Source InficonNugets -ApiKey AzureDevOps -NonInteractive",
+    "build:nuget": "npm run build:lib && nuget.exe pack graphs.nuspec && nuget.exe push Graphs.0.0.2.nupkg -Source InficonNugets -ApiKey AzureDevOps -NonInteractive",
     "preview": "vite preview"
   },
   "devDependencies": {
