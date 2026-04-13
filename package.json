@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "build:lib": "tsc --noEmit && vite build --config vite.config.lib.ts",
+    "build:nuget": "npm run build:lib && nuget.exe pack graphs.nuspec && nuget.exe push Graphs.0.0.0.nupkg -Source InficonNugets -ApiKey AzureDevOps -NonInteractive",
     "preview": "vite preview"
   },
   "devDependencies": {
