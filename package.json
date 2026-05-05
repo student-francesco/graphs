@@ -1,19 +1,35 @@
 {
-  "name": "graphs",
-  "private": true,
-  "version": "0.0.2",
+  "name": "@inficon/graphs",
+  "version": "0.0.3",
   "type": "module",
+  "main": "dist/lib/graphs.umd.js",
+  "module": "dist/lib/graphs.es.js",
+  "types": "dist/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/lib/graphs.es.js",
+      "require": "./dist/lib/graphs.umd.js"
+    }
+  },
+  "files": [
+    "dist/lib"
+  ],
+  "publishConfig": {
+    "registry": "https://isaplus.pkgs.visualstudio.com/_packaging/InficonNugets/npm/registry/"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "build:lib": "tsc --noEmit && vite build --config vite.config.lib.ts",
     "build:nuget": "npm run build:lib && nuget.exe pack graphs.nuspec && nuget.exe push Graphs.0.0.2.nupkg -Source InficonNugets -ApiKey AzureDevOps -NonInteractive",
+    "build:npm": "npm run build:lib && npm publish",
     "preview": "vite preview"
   },
   "devDependencies": {
     "@types/d3": "^7.4.3",
     "typescript": "~5.9.3",
-    "vite": "^8.0.1"
+    "vite": "8.0.5",
+    "vite-plugin-dts": "^5.0.0"
   },
   "dependencies": {
     "d3": "^7.9.0"
