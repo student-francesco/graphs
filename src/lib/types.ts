@@ -93,10 +93,20 @@ export interface ChartSettings {
   edgeFadeWidth: number
 }
 
+/** Per-series appearance overrides */
+export interface SeriesSettings {
+  color?: string
+  lineWeight?: number
+  dotRadius?: number
+  curveType?: CurveType
+}
+
 /** The object Blazor holds as IJSObjectReference */
 export interface LineChartHandle {
   /** Load initial data — hides skeleton and animates chart in */
   setData(data: RawDataPoint[]): void
+  /** Load multi-series data — each key becomes a named series */
+  setData(data: Record<string, RawDataPoint[]>): void
   /**
    * Smart delta-aware update for live/streaming charts.
    * Computes overlap with existing data; transitions if sufficient overlap,
@@ -117,4 +127,22 @@ export interface LineChartHandle {
   clearData(): void
   /** Remove the chart from the DOM and clean up all resources */
   destroy(): void
+
+  // --- Multi-series API ---
+  /** Add a named series; no-op if id already exists */
+  addSeries(id: string, settings?: SeriesSettings): void
+  /** Remove a named series and re-render; 'default' cannot be removed */
+  removeSeries(id: string): void
+  /** Replace the data for a named series; auto-creates the series if absent */
+  setSeriesData(id: string, data: RawDataPoint[]): void
+  /** Delta-aware update for a named series, mirrors updateData */
+  updateSeriesData(id: string, data: RawDataPoint[]): void
+  /** Append a single point to a named series */
+  appendSeriesDataPoint(id: string, point: RawDataPoint): void
+  /** Append multiple points to a named series */
+  appendSeriesDataPoints(id: string, points: RawDataPoint[]): void
+  /** Fast path — mutates stroke color for a named series */
+  setSeriesColor(id: string, color: string): void
+  /** Fast path — mutates stroke width for a named series */
+  setSeriesWeight(id: string, weight: number): void
 }

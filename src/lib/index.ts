@@ -5,6 +5,7 @@ export type {
   ChartMargins,
   CurveType,
   AnimationMode,
+  SeriesSettings,
   LineChartHandle,
 } from './types.ts'
 export { DEFAULT_SETTINGS } from './defaults.ts'
@@ -38,5 +39,13 @@ export function createLineChart(
     appendDataPoints: chart.appendDataPoints.bind(chart),
     clearData: chart.clearData.bind(chart),
     destroy: chart.destroy.bind(chart),
+    addSeries: chart.addSeries.bind(chart),
+    removeSeries: chart.removeSeries.bind(chart),
+    setSeriesData: chart.setSeriesData.bind(chart),
+    updateSeriesData: chart.updateSeriesData.bind(chart),
+    appendSeriesDataPoint: chart.appendSeriesDataPoint.bind(chart),
+    appendSeriesDataPoints: chart.appendSeriesDataPoints.bind(chart),
+    setSeriesColor: chart.setSeriesColor.bind(chart),
+    setSeriesWeight: chart.setSeriesWeight.bind(chart),
   }
 }

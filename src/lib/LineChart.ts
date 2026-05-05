@@ -7,6 +7,7 @@ import type {
   EasingType,
   LineChartHandle,
   AnimationMode,
+  SeriesSettings,
 } from './types.ts'
 import { DEFAULT_SETTINGS } from './defaults.ts'
 import { renderSkeleton, removeSkeleton } from './skeleton.ts'
@@ -38,6 +39,20 @@ const CURVE_MAP: Record<CurveType, d3.CurveFactory | d3.CurveFactoryLineOnly> = 
   stepAfter: d3.curveStepAfter,
 }
 
+interface SeriesState {
+  id: string
+  data: DataPoint[]
+  pendingExitPoints: DataPoint[]
+  color: string
+  lineWeight: number
+  dotRadius: number
+  curveType: CurveType
+}
+
+interface HoverDatum extends DataPoint {
+  seriesId: string
+}
+
 function parseRaw(raw: RawDataPoint): DataPoint {
   const d = new Date(raw.date)
   if (isNaN(d.getTime())) throw new Error(`LineChart: invalid date "${raw.date}"`)
@@ -58,7 +73,11 @@ export class LineChart implements LineChartHandle {
   private settings: ChartSettings
   private svg: d3.Selection<SVGSVGElement, unknown, null, undefined>
   private innerG: d3.Selection<SVGGElement, unknown, null, undefined>
-  private data: DataPoint[] = []
+  private series: Map<string, SeriesState> = new Map()
+  private nextPaletteIndex = 0
+  private static readonly PALETTE = [
+    '#e11d48', '#0891b2', '#16a34a', '#d97706', '#7c3aed', '#db2777', '#0284c7', '#4f46e5',
+  ]
   private tooltip: TooltipController | null = null
   private resizeObserver: ResizeObserver | null = null
   private destroyed = false
@@ -84,7 +103,6 @@ export class LineChart implements LineChartHandle {
   private axisOverlaySvg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null
   private axisOverlayG: d3.Selection<SVGGElement, unknown, null, undefined> | null = null
 
-  private pendingExitPoints: DataPoint[] = []
   private prevXScale: d3.ScaleTime<number, number> | null = null
 
   private lastRender: number = Date.now()
@@ -94,6 +112,17 @@ export class LineChart implements LineChartHandle {
     if (el === null) throw new Error(`LineChart: no element with id "${divId}"`)
     this.container = el
     this.settings = { ...DEFAULT_SETTINGS, ...settings }
+
+    // Initialise the default series
+    this.series.set('default', {
+      id: 'default',
+      data: [],
+      pendingExitPoints: [],
+      color: this.settings.lineColor,
+      lineWeight: this.settings.lineWeight,
+      dotRadius: this.settings.dotRadius,
+      curveType: this.settings.curveType,
+    })
 
     const rect = this.container.getBoundingClientRect()
     this.width = rect.width || 600
@@ -214,7 +243,7 @@ export class LineChart implements LineChartHandle {
       this.height = height
       this.svg.attr('viewBox', `0 0 ${width} ${height}`)
       this.axisOverlaySvg?.attr('viewBox', `0 0 ${width} ${height}`)
-      if (this.data.length > 0) this.render('none')
+      if (this.hasData()) this.render('none')
     })
     this.resizeObserver.observe(this.container)
   }
@@ -223,43 +252,63 @@ export class LineChart implements LineChartHandle {
   // Public API
   // ---------------------------------------------------------------------------
 
-  setData(data: RawDataPoint[]): void {
+  setData(data: RawDataPoint[]): void
+  setData(data: Record<string, RawDataPoint[]>): void
+  setData(data: RawDataPoint[] | Record<string, RawDataPoint[]>): void {
     this.assertAlive()
-    this.data = data.map(parseRaw)
-    this.dismissSkeleton()
-    this.ensureTooltip()
-    this.render(this.settings.setDataAnimation)
+    if (Array.isArray(data)) {
+      const s = this.defaultSeries()
+      s.data = data.map(parseRaw)
+      s.pendingExitPoints = []
+      this.dismissSkeleton()
+      this.ensureTooltip()
+      this.render(this.settings.setDataAnimation)
+    } else {
+      for (const [id, points] of Object.entries(data)) {
+        this.setSeriesData(id, points)
+      }
+    }
   }
 
   updateData(data: RawDataPoint[]): void {
     this.assertAlive()
+    const s = this.defaultSeries()
     const incoming = data.map(parseRaw)
 
-    if (this.data.length === 0) {
-      this.data = incoming
+    if (s.data.length === 0) {
+      s.data = incoming
       this.dismissSkeleton()
       this.ensureTooltip()
       this.render(this.settings.updateDataAnimation)
       return
     }
 
-    const overlap = computeOverlap(this.data, incoming)
-    const ratio = overlap / Math.max(this.data.length, incoming.length)
+    const overlap = computeOverlap(s.data, incoming)
+    const ratio = overlap / Math.max(s.data.length, incoming.length)
     const sufficient =
       overlap >= this.settings.minOverlapForTransition &&
       ratio >= this.settings.overlapThreshold
 
     // Compute exit points for visual continuity during animated transitions
     const incomingSet = new Set(incoming.map(p => p.date.getTime()))
-    this.pendingExitPoints = this.data.filter(p => !incomingSet.has(p.date.getTime()))
+    s.pendingExitPoints = s.data.filter(p => !incomingSet.has(p.date.getTime()))
 
-    this.data = incoming
+    s.data = incoming
 
     if (sufficient) {
       this.render(this.settings.updateDataAnimation)
     } else {
-      this.pendingExitPoints = []
-      this.innerG.selectAll('.lc-line,.lc-dots,.lc-dot,.lc-hover-zone').remove()
+      s.pendingExitPoints = []
+      // Remove default series elements so renderLine sees isNew=true (triggers drawOn)
+      const chartArea = this.innerG.select<SVGGElement>('.lc-chart-area')
+      if (!chartArea.empty()) {
+        const scrollContainer = chartArea.select<SVGGElement>('.lc-scroll-container')
+        if (!scrollContainer.empty()) {
+          scrollContainer.select<SVGGElement>('.lc-series[data-id="default"]')
+            .selectAll('.lc-line,.lc-dot,.lc-dot-exiting').remove()
+          scrollContainer.select('.lc-hover-zones').selectAll('.lc-hover-zone').remove()
+        }
+      }
       this.render(this.settings.updateDataAnimation)
     }
   }
@@ -269,47 +318,65 @@ export class LineChart implements LineChartHandle {
     const hadTooltip = this.settings.showTooltip
     this.settings = { ...this.settings, ...settings }
 
-    if (!hadTooltip && this.settings.showTooltip && this.data.length > 0) {
+    if (!hadTooltip && this.settings.showTooltip && this.hasData()) {
       this.ensureTooltip()
     } else if (hadTooltip && !this.settings.showTooltip) {
       this.tooltip?.destroy()
       this.tooltip = null
     }
 
-    if (this.data.length > 0) this.render('none')
+    if (this.hasData()) this.render('none')
   }
 
   setLineColor(color: string): void {
     this.assertAlive()
     this.settings = { ...this.settings, lineColor: color }
-    this.innerG.select('.lc-line').attr('stroke', color)
-    this.innerG.selectAll('.lc-dot').attr('fill', color)
+    const s = this.defaultSeries()
+    s.color = color
+    const g = this.innerG.select<SVGGElement>('.lc-series[data-id="default"]')
+    g.select('.lc-line').attr('stroke', color)
+    g.selectAll('.lc-dot').attr('fill', color)
   }
 
   setLineWeight(weight: number): void {
     this.assertAlive()
     this.settings = { ...this.settings, lineWeight: weight }
-    this.innerG.select('.lc-line').attr('stroke-width', weight)
+    const s = this.defaultSeries()
+    s.lineWeight = weight
+    this.innerG.select<SVGGElement>('.lc-series[data-id="default"]')
+      .select('.lc-line').attr('stroke-width', weight)
   }
 
   appendDataPoint(point: RawDataPoint): void {
     this.assertAlive()
-    this.data.push(parseRaw(point))
-    this.pendingExitPoints = this.trimToMaxPoints()
-    if (this.data.length > 0) this.render(this.settings.appendAnimation)
+    const s = this.defaultSeries()
+    s.data.push(parseRaw(point))
+    s.pendingExitPoints = this.trimToMaxPoints(s)
+    if (s.data.length > 0) this.render(this.settings.appendAnimation)
   }
 
   appendDataPoints(points: RawDataPoint[]): void {
     this.assertAlive()
-    for (const p of points) this.data.push(parseRaw(p))
-    this.pendingExitPoints = this.trimToMaxPoints()
-    if (this.data.length > 0) this.render(this.settings.appendAnimation)
+    const s = this.defaultSeries()
+    for (const p of points) s.data.push(parseRaw(p))
+    s.pendingExitPoints = this.trimToMaxPoints(s)
+    if (s.data.length > 0) this.render(this.settings.appendAnimation)
   }
 
   clearData(): void {
     this.assertAlive()
-    this.data = []
-    this.pendingExitPoints = []
+    const ds = this.defaultSeries()
+    this.series.clear()
+    this.series.set('default', {
+      ...ds,
+      data: [],
+      pendingExitPoints: [],
+      color: this.settings.lineColor,
+      lineWeight: this.settings.lineWeight,
+      dotRadius: this.settings.dotRadius,
+      curveType: this.settings.curveType,
+    })
+    this.nextPaletteIndex = 0
     this.innerG.selectAll('*').remove()
     this.hasSkeleton = true
     renderSkeleton(this.svg, this.width, this.height, this.settings.margins)
@@ -326,6 +393,123 @@ export class LineChart implements LineChartHandle {
     this.fadeBlurRight.remove()
   }
 
+  // --- Multi-series API ---
+
+  addSeries(id: string, settings?: SeriesSettings): void {
+    this.assertAlive()
+    if (this.series.has(id)) return
+    const color = settings?.color
+      ?? LineChart.PALETTE[this.nextPaletteIndex++ % LineChart.PALETTE.length]
+    this.series.set(id, {
+      id,
+      data: [],
+      pendingExitPoints: [],
+      color,
+      lineWeight: settings?.lineWeight ?? this.settings.lineWeight,
+      dotRadius: settings?.dotRadius ?? this.settings.dotRadius,
+      curveType: settings?.curveType ?? this.settings.curveType,
+    })
+  }
+
+  removeSeries(id: string): void {
+    this.assertAlive()
+    if (id === 'default') return
+    this.series.delete(id)
+    // Remove DOM group immediately
+    const chartArea = this.innerG.select<SVGGElement>('.lc-chart-area')
+    if (!chartArea.empty()) {
+      chartArea.select('.lc-scroll-container')
+        .select(`.lc-series[data-id="${id}"]`).remove()
+    }
+    if (this.hasData()) this.render('none')
+  }
+
+  setSeriesData(id: string, data: RawDataPoint[]): void {
+    this.assertAlive()
+    if (!this.series.has(id)) this.addSeries(id)
+    const s = this.series.get(id)!
+    s.data = data.map(parseRaw)
+    s.pendingExitPoints = []
+    this.dismissSkeleton()
+    this.ensureTooltip()
+    this.render(this.settings.setDataAnimation)
+  }
+
+  updateSeriesData(id: string, data: RawDataPoint[]): void {
+    this.assertAlive()
+    if (!this.series.has(id)) this.addSeries(id)
+    const s = this.series.get(id)!
+    const incoming = data.map(parseRaw)
+
+    if (s.data.length === 0) {
+      s.data = incoming
+      this.dismissSkeleton()
+      this.ensureTooltip()
+      this.render(this.settings.updateDataAnimation)
+      return
+    }
+
+    const overlap = computeOverlap(s.data, incoming)
+    const ratio = overlap / Math.max(s.data.length, incoming.length)
+    const sufficient =
+      overlap >= this.settings.minOverlapForTransition &&
+      ratio >= this.settings.overlapThreshold
+
+    const incomingSet = new Set(incoming.map(p => p.date.getTime()))
+    s.pendingExitPoints = s.data.filter(p => !incomingSet.has(p.date.getTime()))
+    s.data = incoming
+
+    if (sufficient) {
+      this.render(this.settings.updateDataAnimation)
+    } else {
+      s.pendingExitPoints = []
+      const chartArea = this.innerG.select<SVGGElement>('.lc-chart-area')
+      if (!chartArea.empty()) {
+        chartArea.select('.lc-scroll-container')
+          .select<SVGGElement>(`.lc-series[data-id="${id}"]`)
+          .selectAll('.lc-line,.lc-dot,.lc-dot-exiting').remove()
+      }
+      this.render(this.settings.updateDataAnimation)
+    }
+  }
+
+  appendSeriesDataPoint(id: string, point: RawDataPoint): void {
+    this.assertAlive()
+    if (!this.series.has(id)) this.addSeries(id)
+    const s = this.series.get(id)!
+    s.data.push(parseRaw(point))
+    s.pendingExitPoints = this.trimToMaxPoints(s)
+    if (s.data.length > 0) this.render(this.settings.appendAnimation)
+  }
+
+  appendSeriesDataPoints(id: string, points: RawDataPoint[]): void {
+    this.assertAlive()
+    if (!this.series.has(id)) this.addSeries(id)
+    const s = this.series.get(id)!
+    for (const p of points) s.data.push(parseRaw(p))
+    s.pendingExitPoints = this.trimToMaxPoints(s)
+    if (s.data.length > 0) this.render(this.settings.appendAnimation)
+  }
+
+  setSeriesColor(id: string, color: string): void {
+    this.assertAlive()
+    const s = this.series.get(id)
+    if (!s) return
+    s.color = color
+    const g = this.innerG.select<SVGGElement>(`.lc-series[data-id="${id}"]`)
+    g.select('.lc-line').attr('stroke', color)
+    g.selectAll('.lc-dot').attr('fill', color)
+  }
+
+  setSeriesWeight(id: string, weight: number): void {
+    this.assertAlive()
+    const s = this.series.get(id)
+    if (!s) return
+    s.lineWeight = weight
+    this.innerG.select<SVGGElement>(`.lc-series[data-id="${id}"]`)
+      .select('.lc-line').attr('stroke-width', weight)
+  }
+
   // ---------------------------------------------------------------------------
   // Private
   // ---------------------------------------------------------------------------
@@ -336,6 +520,14 @@ export class LineChart implements LineChartHandle {
 
   private get innerHeight(): number {
     return this.height - this.settings.margins.top - this.settings.margins.bottom
+  }
+
+  private defaultSeries(): SeriesState {
+    return this.series.get('default')!
+  }
+
+  private hasData(): boolean {
+    return Array.from(this.series.values()).some(s => s.data.length > 0)
   }
 
   private dismissSkeleton(): void {
@@ -350,11 +542,11 @@ export class LineChart implements LineChartHandle {
     }
   }
 
-  private trimToMaxPoints(): DataPoint[] {
+  private trimToMaxPoints(s: SeriesState): DataPoint[] {
     const max = this.settings.maxDataPoints
-    if (max === null || max <= 0 || this.data.length <= max) return []
-    const newExit = this.data.splice(0, this.data.length - max);
-    return this.pendingExitPoints.concat(newExit)
+    if (max === null || max <= 0 || s.data.length <= max) return []
+    const newExit = s.data.splice(0, s.data.length - max)
+    return s.pendingExitPoints.concat(newExit)
   }
 
   /**
@@ -436,9 +628,10 @@ export class LineChart implements LineChartHandle {
     xScale: d3.ScaleTime<number, number>
     yScale: d3.ScaleLinear<number, number>
   } {
-    const xExtent = d3.extent(this.data, d => d.date) as [Date, Date]
-    const yMax = d3.max(this.data, d => d.value) ?? 0
-    const yMin = d3.min(this.data, d => d.value) ?? 0
+    const allPoints = Array.from(this.series.values()).flatMap(s => s.data)
+    const xExtent = d3.extent(allPoints, d => d.date) as [Date, Date]
+    const yMax = d3.max(allPoints, d => d.value) ?? 0
+    const yMin = d3.min(allPoints, d => d.value) ?? 0
     const yPad = (yMax - yMin) * 0.1 || 1
 
     return {
@@ -448,11 +641,10 @@ export class LineChart implements LineChartHandle {
   }
 
   private render(mode: AnimationMode): void {
-    if (this.data.length === 0) return
+    if (!this.hasData()) return
 
     const duration = mode !== 'none' ? this.settings.animationDuration : 0
     const { xScale, yScale } = this.buildScales()
-    const curve = CURVE_MAP[this.settings.curveType]
 
     const animatingStill = this.lastRender + duration > Date.now();
     const ease = animatingStill ? EASING_MAP.easeExpOut : EASING_MAP[this.settings.easingType]
@@ -487,9 +679,12 @@ export class LineChart implements LineChartHandle {
       const m = raw.match(/translate\(\s*([-\d.e]+)/)
       const currentScrollX = m ? parseFloat(m[1]) : 0
 
-      if (this.prevXScale && this.data.length > 0) {
-        const refDate = this.data[0].date
-        scrollStartX = (this.prevXScale(refDate) - xScale(refDate)) + currentScrollX
+      if (this.prevXScale) {
+        const allPoints = Array.from(this.series.values()).flatMap(s => s.data)
+        if (allPoints.length > 0) {
+          const refDate = allPoints[0].date
+          scrollStartX = (this.prevXScale(refDate) - xScale(refDate)) + currentScrollX
+        }
       }
 
       scrollDelta = currentScrollX - scrollStartX
@@ -514,8 +709,25 @@ export class LineChart implements LineChartHandle {
       ease,
     })
 
-    this.renderLine(scrollContainer, xScale, yScale, curve, mode, duration, ease)
-    this.renderDots(scrollContainer, xScale, yScale, mode, duration, ease)
+    // D3 data-join over series — one <g class="lc-series" data-id="…"> per series
+    const seriesArray = Array.from(this.series.values())
+    const groups = scrollContainer
+      .selectAll<SVGGElement, SeriesState>('.lc-series')
+      .data(seriesArray, s => s.id)
+
+    groups.exit().remove()
+    const merged = groups.enter()
+      .append('g')
+      .attr('class', 'lc-series')
+      .attr('data-id', s => s.id)
+      .merge(groups)
+
+    merged.each((s, i, nodes) => {
+      const g = d3.select<SVGGElement, SeriesState>(nodes[i] as SVGGElement)
+      const curve = CURVE_MAP[s.curveType]
+      this.renderLine(g, s, xScale, yScale, curve, mode, duration, ease)
+      this.renderDots(g, s, xScale, yScale, mode, duration, ease)
+    })
 
     if (this.settings.showTooltip && this.tooltip !== null) {
       this.renderHoverZones(scrollContainer, xScale, yScale)
@@ -557,12 +769,15 @@ export class LineChart implements LineChartHandle {
     this.prevXScale = xScale
     this.lastRender = Date.now();
 
-    // Keep a small number of exit points so the blur is not disturbed
-    this.pendingExitPoints.splice(0, this.pendingExitPoints.length - 4);
+    // Keep a small number of exit points per series so the blur is not disturbed
+    for (const s of this.series.values()) {
+      s.pendingExitPoints.splice(0, s.pendingExitPoints.length - 4)
+    }
   }
 
   private renderLine(
-    scrollContainer: d3.Selection<SVGGElement, unknown, null, undefined>,
+    g: d3.Selection<SVGGElement, SeriesState, null, undefined>,
+    series: SeriesState,
     xScale: d3.ScaleTime<number, number>,
     yScale: d3.ScaleLinear<number, number>,
     curve: d3.CurveFactory | d3.CurveFactoryLineOnly,
@@ -576,14 +791,14 @@ export class LineChart implements LineChartHandle {
       .y(d => yScale(d.value))
       .curve(curve)
 
-    const existing = scrollContainer.select<SVGPathElement>('.lc-line')
+    const existing = g.select<SVGPathElement>('.lc-line')
     const isNew = existing.empty()
 
-    const path = (isNew ? scrollContainer.append('path') : existing)
+    const path = (isNew ? g.append('path') : existing)
       .attr('class', 'lc-line')
       .attr('fill', 'none')
-      .attr('stroke', this.settings.lineColor)
-      .attr('stroke-width', this.settings.lineWeight)
+      .attr('stroke', series.color)
+      .attr('stroke-width', series.lineWeight)
       .attr('stroke-linecap', 'round')
       .attr('stroke-linejoin', 'round')
 
@@ -593,7 +808,7 @@ export class LineChart implements LineChartHandle {
     const useDrawOn = mode === 'drawOn' || ((mode === 'transition' || mode === 'morph') && isNew)
 
     if (useDrawOn && duration > 0) {
-      path.attr('d', lineGen(this.data) ?? '')
+      path.attr('d', lineGen(series.data) ?? '')
       const totalLength = path.node()?.getTotalLength() ?? 0
       path
         .attr('stroke-dasharray', `${totalLength} ${totalLength}`)
@@ -608,9 +823,9 @@ export class LineChart implements LineChartHandle {
     } else if (mode === 'morph' && duration > 0) {
       // D3 path morph — include exit points so control-point count stays identical
       const renderData =
-        this.pendingExitPoints.length > 0
-          ? [...this.pendingExitPoints, ...this.data]
-          : this.data
+        series.pendingExitPoints.length > 0
+          ? [...series.pendingExitPoints, ...series.data]
+          : series.data
       path
         .transition()
         .duration(duration)
@@ -620,40 +835,41 @@ export class LineChart implements LineChartHandle {
       // Container handles the animation; render path instantly.
       // Include exit points (at negative x) so the leftmost segment clips off cleanly.
       const renderData =
-        this.pendingExitPoints.length > 0
-          ? [...this.pendingExitPoints, ...this.data]
-          : this.data
+        series.pendingExitPoints.length > 0
+          ? [...series.pendingExitPoints, ...series.data]
+          : series.data
       path
         .attr('d', lineGen(renderData) ?? '')
         .attr('stroke-dasharray', null)
         .attr('stroke-dashoffset', null)
     } else {
       path
-        .attr('d', lineGen(this.data) ?? '')
+        .attr('d', lineGen(series.data) ?? '')
         .attr('stroke-dasharray', null)
         .attr('stroke-dashoffset', null)
     }
   }
 
   private renderDots(
-    scrollContainer: d3.Selection<SVGGElement, unknown, null, undefined>,
+    g: d3.Selection<SVGGElement, SeriesState, null, undefined>,
+    series: SeriesState,
     xScale: d3.ScaleTime<number, number>,
     yScale: d3.ScaleLinear<number, number>,
     mode: AnimationMode,
     duration: number,
     ease: (t: number) => number,
   ): void {
-    if (this.settings.dotRadius === 0) {
-      scrollContainer.selectAll('.lc-dot,.lc-dot-exiting').remove()
+    if (series.dotRadius === 0) {
+      g.selectAll('.lc-dot,.lc-dot-exiting').remove()
       return
     }
 
     const joinData =
-      this.pendingExitPoints.length > 0
-        ? [...this.pendingExitPoints, ...this.data]
-        : this.data
+      series.pendingExitPoints.length > 0
+        ? [...series.pendingExitPoints, ...series.data]
+        : series.data
 
-    const dots = scrollContainer
+    const dots = g
       .selectAll<SVGCircleElement, DataPoint>('.lc-dot')
       .data(joinData, d => d.date.getTime())
 
@@ -664,11 +880,11 @@ export class LineChart implements LineChartHandle {
       .attr('cx', d => xScale(d.date))
       .attr('cy', d => yScale(d.value))
       .attr('r', 0)
-      .attr('fill', this.settings.lineColor)
+      .attr('fill', series.color)
       .attr('stroke', '#fff')
       .attr('stroke-width', 2)
 
-    const merged = enter.merge(dots).attr('fill', this.settings.lineColor)
+    const merged = enter.merge(dots).attr('fill', series.color)
 
     if (mode === 'morph' && duration > 0) {
       merged
@@ -677,13 +893,13 @@ export class LineChart implements LineChartHandle {
         .ease(ease)
         .attr('cx', d => xScale(d.date))
         .attr('cy', d => yScale(d.value))
-        .attr('r', this.settings.dotRadius)
+        .attr('r', series.dotRadius)
     } else {
       // transition mode and none: snap to final positions; container drives the animation
       merged
         .attr('cx', d => xScale(d.date))
         .attr('cy', d => yScale(d.value))
-        .attr('r', this.settings.dotRadius)
+        .attr('r', series.dotRadius)
     }
 
     // Rename class immediately so future joins never see these elements again,
@@ -701,11 +917,23 @@ export class LineChart implements LineChartHandle {
     xScale: d3.ScaleTime<number, number>,
     yScale: d3.ScaleLinear<number, number>,
   ): void {
-    const hitRadius = Math.max(this.settings.dotRadius, 8)
+    const hitRadius = Math.max(
+      Math.max(...Array.from(this.series.values()).map(s => s.dotRadius)),
+      8,
+    )
 
-    const zones = scrollContainer
-      .selectAll<SVGCircleElement, DataPoint>('.lc-hover-zone')
-      .data(this.data, d => d.date.getTime())
+    // Single group above all series groups for correct paint order
+    let zonesG = scrollContainer.select<SVGGElement>('.lc-hover-zones')
+    if (zonesG.empty()) {
+      zonesG = scrollContainer.append('g').attr('class', 'lc-hover-zones')
+    }
+
+    const allData: HoverDatum[] = Array.from(this.series.values())
+      .flatMap(s => s.data.map(d => ({ ...d, seriesId: s.id })))
+
+    const zones = zonesG
+      .selectAll<SVGCircleElement, HoverDatum>('.lc-hover-zone')
+      .data(allData, d => `${d.date.getTime()}-${d.seriesId}`)
 
     zones
       .enter()
@@ -718,7 +946,7 @@ export class LineChart implements LineChartHandle {
       .merge(zones)
       .attr('cx', d => xScale(d.date))
       .attr('cy', d => yScale(d.value))
-      .on('mouseenter', (event: MouseEvent, d: DataPoint) => {
+      .on('mouseenter', (event: MouseEvent, d: HoverDatum) => {
         this.tooltip?.show(event, d)
       })
       .on('mousemove', (event: MouseEvent) => {
