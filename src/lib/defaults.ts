@@ -35,4 +35,7 @@ export const DEFAULT_SETTINGS: ChartSettings = {
   appendAnimation: 'none',
 
   maxDataPoints: null,
+
+  showLabels: false,
+  labelFormat: null,
 }

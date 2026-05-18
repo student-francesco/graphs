@@ -881,6 +881,7 @@ export class LineChart implements LineChartHandle {
       const yScale = yScaleFor(s)
       this.renderLine(g, s, xScale, yScale, curve, mode, duration, ease)
       this.renderDots(g, s, xScale, yScale, mode, duration, ease)
+      this.renderLabels(g, s, xScale, yScale, mode, duration, ease)
     })
 
     if (this.settings.showTooltip && this.tooltip !== null) {
@@ -1065,6 +1066,62 @@ export class LineChart implements LineChartHandle {
     } else {
       exitDots.remove()
     }
+  }
+
+  private renderLabels(
+    g: d3.Selection<SVGGElement, SeriesState, null, undefined>,
+    series: SeriesState,
+    xScale: d3.ScaleTime<number, number>,
+    yScale: d3.ScaleLinear<number, number>,
+    mode: AnimationMode,
+    duration: number,
+    ease: (t: number) => number,
+  ): void {
+    if (!this.settings.showLabels) {
+      g.selectAll('.lc-label').remove()
+      return
+    }
+
+    const fmt = d3.format(this.settings.labelFormat ?? this.settings.tooltipValueFormat)
+    const color = this.resolveStrokeColor(series)
+    const offsetY = series.dotRadius > 0 ? -(series.dotRadius + 5) : -8
+
+    const labels = g
+      .selectAll<SVGTextElement, DataPoint>('.lc-label')
+      .data(series.data, d => d.date.getTime())
+
+    const enter = labels
+      .enter()
+      .append('text')
+      .attr('class', 'lc-label')
+      .attr('x', d => xScale(d.date))
+      .attr('y', d => yScale(d.value) + offsetY)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '10px')
+      .attr('font-family', 'sans-serif')
+      .attr('fill', color)
+      .attr('pointer-events', 'none')
+      .style('opacity', 0)
+      .text(d => fmt(d.value))
+
+    const merged = enter.merge(labels).attr('fill', color).text(d => fmt(d.value))
+
+    if (mode !== 'none' && duration > 0) {
+      merged
+        .transition()
+        .duration(duration)
+        .ease(ease)
+        .attr('x', d => xScale(d.date))
+        .attr('y', d => yScale(d.value) + offsetY)
+        .style('opacity', 1)
+    } else {
+      merged
+        .attr('x', d => xScale(d.date))
+        .attr('y', d => yScale(d.value) + offsetY)
+        .style('opacity', 1)
+    }
+
+    labels.exit().transition().duration(duration > 0 ? duration : 0).style('opacity', 0).remove()
   }
 
   private renderHoverZones(
