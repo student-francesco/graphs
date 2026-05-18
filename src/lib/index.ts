@@ -39,6 +39,7 @@ export function createLineChart(
     appendDataPoint: chart.appendDataPoint.bind(chart),
     appendDataPoints: chart.appendDataPoints.bind(chart),
     clearData: chart.clearData.bind(chart),
+    saveToPdf: chart.saveToPdf.bind(chart),
     destroy: chart.destroy.bind(chart),
     addSeries: chart.addSeries.bind(chart),
     removeSeries: chart.removeSeries.bind(chart),

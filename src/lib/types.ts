@@ -145,6 +145,8 @@ export interface LineChartHandle {
   appendDataPoints(points: RawDataPoint[]): void
   /** Clear all data and return to skeleton state */
   clearData(): void
+  /** Export the current chart as a PDF and trigger a browser download */
+  saveToPdf(filename?: string): Promise<void>
   /** Remove the chart from the DOM and clean up all resources */
   destroy(): void
 
