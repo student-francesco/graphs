@@ -47,10 +47,10 @@ interface SeriesState {
   id: string
   data: DataPoint[]
   pendingExitPoints: DataPoint[]
-  color: string
-  lineWeight: number
-  dotRadius: number
-  curveType: CurveType
+  color: string | undefined       // undefined = fall back to settings.lineColor
+  lineWeight: number | undefined  // undefined = fall back to settings.lineWeight
+  dotRadius: number | undefined   // undefined = fall back to settings.dotRadius
+  curveType: CurveType | undefined // undefined = fall back to settings.curveType
   axisId: string
   smoothing: number | undefined
   decimation: number | undefined
@@ -142,15 +142,16 @@ export class LineChart implements LineChartHandle {
       scaleType: this.settings.yScaleType,
     })
 
-    // Initialise the default series
+    // Initialise the default series — display properties left undefined so they
+    // always fall back to the current chart-wide settings at render time.
     this.series.set('default', {
       id: 'default',
       data: [],
       pendingExitPoints: [],
-      color: this.settings.lineColor,
-      lineWeight: this.settings.lineWeight,
-      dotRadius: this.settings.dotRadius,
-      curveType: this.settings.curveType,
+      color: undefined,
+      lineWeight: undefined,
+      dotRadius: undefined,
+      curveType: undefined,
       axisId: DEFAULT_AXIS_ID,
       smoothing: undefined,
       decimation: undefined,
@@ -360,12 +361,6 @@ export class LineChart implements LineChartHandle {
       this.ensureTooltip()
     }
 
-    if (settings.dotRadius !== undefined)
-      this.series.forEach(s => { s.dotRadius = settings.dotRadius! })
-    if (settings.curveType !== undefined)
-      this.series.forEach(s => { s.curveType = settings.curveType! })
-    if (settings.lineWeight !== undefined)
-      this.series.forEach(s => { s.lineWeight = settings.lineWeight! })
     if (settings.yScaleType !== undefined) {
       const primary = this.axes.get(DEFAULT_AXIS_ID)
       if (primary) primary.scaleType = settings.yScaleType
@@ -378,21 +373,23 @@ export class LineChart implements LineChartHandle {
   setLineColor(color: string): void {
     this.assertAlive()
     this.settings = { ...this.settings, lineColor: color }
-    const s = this.defaultSeries()
-    s.color = color
-    const painted = this.resolveStrokeColor(s)
-    const g = this.innerG.select<SVGGElement>('.lc-series[data-id="default"]')
-    g.select('.lc-line').attr('stroke', painted)
-    g.selectAll('.lc-dot').attr('fill', painted)
+    this.series.forEach((s, id) => {
+      if (s.color !== undefined) return
+      const painted = this.resolveStrokeColor(s)
+      const g = this.innerG.select<SVGGElement>(`.lc-series[data-id="${id}"]`)
+      g.select('.lc-line').attr('stroke', painted)
+      g.selectAll('.lc-dot').attr('fill', painted)
+    })
   }
 
   setLineWeight(weight: number): void {
     this.assertAlive()
     this.settings = { ...this.settings, lineWeight: weight }
-    const s = this.defaultSeries()
-    s.lineWeight = weight
-    this.innerG.select<SVGGElement>('.lc-series[data-id="default"]')
-      .select('.lc-line').attr('stroke-width', weight)
+    this.series.forEach((s, id) => {
+      if (s.lineWeight !== undefined) return
+      this.innerG.select<SVGGElement>(`.lc-series[data-id="${id}"]`)
+        .select('.lc-line').attr('stroke-width', weight)
+    })
   }
 
   appendDataPoint(point: RawDataPoint): void {
@@ -419,13 +416,7 @@ export class LineChart implements LineChartHandle {
       ...ds,
       data: [],
       pendingExitPoints: [],
-      color: this.settings.lineColor,
-      lineWeight: this.settings.lineWeight,
-      dotRadius: this.settings.dotRadius,
-      curveType: this.settings.curveType,
       axisId: this.axes.has(ds.axisId) ? ds.axisId : this.firstAxisId(),
-      smoothing: ds.smoothing,
-      decimation: ds.decimation,
     })
     this.nextPaletteIndex = 0
     this.innerG.selectAll('*').remove()
@@ -528,9 +519,9 @@ export class LineChart implements LineChartHandle {
       data: [],
       pendingExitPoints: [],
       color,
-      lineWeight: settings?.lineWeight ?? this.settings.lineWeight,
-      dotRadius: settings?.dotRadius ?? this.settings.dotRadius,
-      curveType: settings?.curveType ?? this.settings.curveType,
+      lineWeight: settings?.lineWeight,
+      dotRadius: settings?.dotRadius,
+      curveType: settings?.curveType,
       axisId,
       smoothing: settings?.smoothing,
       decimation: settings?.decimation,
@@ -759,7 +750,7 @@ export class LineChart implements LineChartHandle {
    * stored colour. Keeps `setLineColor` / `setSeriesColor` working as fast paths.
    */
   private resolveStrokeColor(s: SeriesState): string {
-    return this.axes.get(s.axisId)?.color ?? s.color
+    return this.axes.get(s.axisId)?.color ?? s.color ?? this.settings.lineColor
   }
 
   /**
@@ -1027,7 +1018,7 @@ export class LineChart implements LineChartHandle {
 
     merged.each((s, i, nodes) => {
       const g = d3.select<SVGGElement, SeriesState>(nodes[i] as SVGGElement)
-      const curve = CURVE_MAP[s.curveType]
+      const curve = CURVE_MAP[s.curveType ?? this.settings.curveType]
       const yScale = yScaleFor(s)
       const smoothed = this.getSmoothedData(s)
       const display = this.getDecimatedData(s, smoothed)
@@ -1172,7 +1163,7 @@ export class LineChart implements LineChartHandle {
       .attr('class', 'lc-line')
       .attr('fill', 'none')
       .attr('stroke', this.resolveStrokeColor(series))
-      .attr('stroke-width', series.lineWeight)
+      .attr('stroke-width', series.lineWeight ?? this.settings.lineWeight)
       .attr('stroke-linecap', 'round')
       .attr('stroke-linejoin', 'round')
 
@@ -1234,7 +1225,8 @@ export class LineChart implements LineChartHandle {
     duration: number,
     ease: (t: number) => number,
   ): void {
-    if (series.dotRadius === 0) {
+    const dotRadius = series.dotRadius ?? this.settings.dotRadius
+    if (dotRadius === 0) {
       g.selectAll('.lc-dot,.lc-dot-exiting').remove()
       return
     }
@@ -1271,13 +1263,13 @@ export class LineChart implements LineChartHandle {
         .ease(ease)
         .attr('cx', d => xScale(d.date))
         .attr('cy', d => yScale(d.value))
-        .attr('r', series.dotRadius)
+        .attr('r', dotRadius)
     } else {
       // transition mode and none: snap to final positions; container drives the animation
       merged
         .attr('cx', d => xScale(d.date))
         .attr('cy', d => yScale(d.value))
-        .attr('r', series.dotRadius)
+        .attr('r', dotRadius)
     }
 
     // Rename class immediately so future joins never see these elements again,
@@ -1307,7 +1299,8 @@ export class LineChart implements LineChartHandle {
 
     const fmt = d3.format(this.settings.labelFormat ?? this.settings.tooltipValueFormat)
     const color = this.resolveStrokeColor(series)
-    const offsetY = series.dotRadius > 0 ? -(series.dotRadius + 5) : -8
+    const dotRadius = series.dotRadius ?? this.settings.dotRadius
+    const offsetY = dotRadius > 0 ? -(dotRadius + 5) : -8
     const labels = g
       .selectAll<SVGTextElement, DataPoint>('.lc-label')
       .data(smoothed, d => d.date.getTime())
@@ -1352,7 +1345,7 @@ export class LineChart implements LineChartHandle {
     yScaleFor: (series: SeriesState) => YScale,
   ): void {
     const hitRadius = Math.max(
-      Math.max(...Array.from(this.series.values()).map(s => s.dotRadius)),
+      Math.max(...Array.from(this.series.values()).map(s => s.dotRadius ?? this.settings.dotRadius)),
       8,
     )
 
