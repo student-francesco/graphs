@@ -110,6 +110,15 @@ export interface ChartSettings {
   xLabel: string | null
   /** Label for the default y-axis, rendered rotated along the left margin. null = hidden. */
   yLabel: string | null
+
+  /** Moving average window size; 0 = disabled. Applied view-side — raw data is unchanged. */
+  smoothing: number
+
+  /** LTTB decimation target point count per series; 0 = disabled. Applied view-side — raw data is unchanged. */
+  decimation: number
+
+  /** Scale type for the primary (default) y-axis. Per-axis overrides take precedence. */
+  yScaleType: 'linear' | 'log'
 }
 
 /** Per-series appearance overrides */
@@ -120,6 +129,10 @@ export interface SeriesSettings {
   curveType?: CurveType
   /** Id of the y-axis this series is plotted against; defaults to 'default'. Unknown ids fall back to a random axis. */
   axis?: string
+  /** Per-series moving average window size override; undefined falls back to ChartSettings.smoothing. */
+  smoothing?: number
+  /** Per-series LTTB decimation target override; undefined falls back to ChartSettings.decimation. */
+  decimation?: number
 }
 
 /** Per y-axis configuration */
@@ -132,6 +145,8 @@ export interface AxisOptions {
   range?: [number, number]
   /** Soft bounds — the auto-computed extent is clamped so the axis cannot extend below limits[0] nor above limits[1]. */
   limits?: [number, number]
+  /** Scale type for this axis. Defaults to 'linear'. */
+  scaleType?: 'linear' | 'log'
 }
 
 /** The object Blazor holds as IJSObjectReference */

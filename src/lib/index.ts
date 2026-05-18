@@ -11,6 +11,7 @@ export type {
 } from './types.ts'
 export { DEFAULT_SETTINGS } from './defaults.ts'
 export { LineChart } from './LineChart.ts'
+export { lttb, movingAverage } from './transforms.ts'
 
 import { LineChart } from './LineChart.ts'
 import type { ChartSettings, LineChartHandle } from './types.ts'

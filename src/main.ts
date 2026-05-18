@@ -26,6 +26,18 @@ function slideWindow(data: RawDataPoint[], steps: number): RawDataPoint[] {
   return [...sliced, ...tail]
 }
 
+/** Generate exponential/power-law data suitable for log-scale demo (values 0.1 → 10 000) */
+function generateExpSeries(days: number, startDate = new Date('2024-01-01')): RawDataPoint[] {
+  const points: RawDataPoint[] = []
+  for (let i = 0; i < days; i++) {
+    const date = new Date(startDate)
+    date.setDate(startDate.getDate() + i)
+    const value = 0.1 * Math.pow(10, (i / (days - 1)) * 5) * (0.8 + Math.random() * 0.4)
+    points.push({ date: date.toISOString(), value })
+  }
+  return points
+}
+
 // ---------------------------------------------------------------------------
 // Create chart — this mirrors what Blazor does after OnAfterRenderAsync
 // ---------------------------------------------------------------------------
@@ -47,10 +59,10 @@ function setLog(msg: string) { log.textContent = msg }
 let currentData: RawDataPoint[] = []
 
 setTimeout(() => {
-  currentData = generateSeries(90)
+  currentData = generateSeries(500)
   seriesDataMap.set('default', currentData)
   chart.setData(currentData)
-  setLog('Data loaded. Try the buttons above.')
+  setLog('Data loaded (500 points). Drag the Decimation slider to reduce rendered points.')
 }, 1500)
 
 // ---------------------------------------------------------------------------
@@ -501,4 +513,40 @@ yLabelInput.addEventListener('input', () => {
   const yLabel = yLabelInput.value.trim() || null
   chart.updateSettings({ yLabel })
   setLog(`updateSettings({ yLabel: ${yLabel ? `"${yLabel}"` : 'null'} })`)
+})
+
+// ---------------------------------------------------------------------------
+// Y-scale type toggle
+// ---------------------------------------------------------------------------
+
+let yScaleType: 'linear' | 'log' = 'linear'
+const btnYScaleToggle = document.getElementById('btn-y-scale-toggle')!
+
+btnYScaleToggle.addEventListener('click', () => {
+  yScaleType = yScaleType === 'linear' ? 'log' : 'linear'
+  btnYScaleToggle.textContent = `Y scale: ${yScaleType}`
+  chart.updateSettings({ yScaleType })
+  setLog(`updateSettings({ yScaleType: "${yScaleType}" })`)
+})
+
+document.getElementById('btn-load-exp')!.addEventListener('click', () => {
+  const data = generateExpSeries(60)
+  seriesDataMap.set('default', data)
+  currentData = data
+  chart.setData(data)
+  setLog('setData(exponential data — good for log scale)')
+})
+
+// ---------------------------------------------------------------------------
+// Decimation controls
+// ---------------------------------------------------------------------------
+
+const decimationSlider = document.getElementById('decimation-threshold') as HTMLInputElement
+const decimationDisplay = document.getElementById('decimation-display')!
+
+decimationSlider.addEventListener('input', () => {
+  const decimation = parseInt(decimationSlider.value, 10)
+  decimationDisplay.textContent = decimation === 0 ? 'off' : String(decimation)
+  chart.updateSettings({ decimation })
+  setLog(`updateSettings({ decimation: ${decimation} })`)
 })

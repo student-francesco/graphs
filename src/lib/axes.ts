@@ -1,6 +1,8 @@
 import * as d3 from 'd3'
 import type { AnimationMode, ChartSettings } from './types.ts'
 
+export type YScale = d3.ScaleLinear<number, number> | d3.ScaleLogarithmic<number, number>
+
 /** Resolved per-axis render data, computed once per render() in LineChart. */
 export interface AxisLayout {
   id: string
@@ -9,6 +11,7 @@ export interface AxisLayout {
   position: 'left' | 'right'
   /** x offset relative to innerG origin (0 = chart's left edge, innerWidth = right edge) */
   offsetX: number
+  scaleType: 'linear' | 'log'
 }
 
 export interface AxesConfig {
@@ -20,7 +23,7 @@ export interface AxesConfig {
   scrollG: d3.Selection<SVGGElement, unknown, null, undefined>
   xScale: d3.ScaleTime<number, number>
   /** One y-scale per axis id; layout[0]'s scale is used for the horizontal grid. */
-  yScales: Map<string, d3.ScaleLinear<number, number>>
+  yScales: Map<string, YScale>
   layout: AxisLayout[]
   innerWidth: number
   innerHeight: number
@@ -190,6 +193,8 @@ export function renderAxes(config: AxesConfig): void {
     const gen = axis.position === 'right' ? d3.axisRight(yScale) : d3.axisLeft(yScale)
     if (settings.yAxisFormatter !== null) {
       gen.tickFormat((d, i) => settings.yAxisFormatter!(d as number, i))
+    } else if (axis.scaleType === 'log') {
+      gen.ticks(5, d3.format('.2~s'))
     }
 
     if (animate && duration > 0) {

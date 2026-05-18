@@ -52,4 +52,9 @@ export const DEFAULT_SETTINGS: ChartSettings = {
   title: null,
   xLabel: null,
   yLabel: null,
+
+  smoothing: 0,
+  decimation: 0,
+
+  yScaleType: 'linear',
 }
