@@ -89,6 +89,11 @@ export interface ChartSettings {
   // Rolling window — null means unlimited
   maxDataPoints: number | null
 
+  /** Show value labels next to each data point */
+  showLabels: boolean
+  /** d3-format specifier for label values; null falls back to tooltipValueFormat */
+  labelFormat: string | null
+
 }
 
 /** Per-series appearance overrides */
