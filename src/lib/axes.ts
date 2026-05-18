@@ -1,15 +1,27 @@
 import * as d3 from 'd3'
 import type { AnimationMode, ChartSettings } from './types.ts'
 
+/** Resolved per-axis render data, computed once per render() in LineChart. */
+export interface AxisLayout {
+  id: string
+  name: string
+  color: string | null
+  position: 'left' | 'right'
+  /** x offset relative to innerG origin (0 = chart's left edge, innerWidth = right edge) */
+  offsetX: number
+}
+
 export interface AxesConfig {
-  /** Container for the fixed y-axis (stays in innerG, outside chart area) */
+  /** Container for fixed y-axes (stays in innerG, outside chart area) */
   g: d3.Selection<SVGGElement, unknown, null, undefined>
   /** Container for the static x-axis baseline line (lc-chart-area — clipped but never scrolls) */
   chartAreaG: d3.Selection<SVGGElement, unknown, null, undefined>
   /** Container for grids and x-axis ticks (lc-scroll-container — scrolls with data) */
   scrollG: d3.Selection<SVGGElement, unknown, null, undefined>
   xScale: d3.ScaleTime<number, number>
-  yScale: d3.ScaleLinear<number, number>
+  /** One y-scale per axis id; layout[0]'s scale is used for the horizontal grid. */
+  yScales: Map<string, d3.ScaleLinear<number, number>>
+  layout: AxisLayout[]
   innerWidth: number
   innerHeight: number
   settings: ChartSettings
@@ -19,20 +31,30 @@ export interface AxesConfig {
 }
 
 export function renderAxes(config: AxesConfig): void {
-  const { g, chartAreaG, scrollG, xScale, yScale, innerWidth, innerHeight, settings, mode, duration, ease } = config
+  const {
+    g, chartAreaG, scrollG,
+    xScale, yScales, layout,
+    innerWidth, innerHeight,
+    settings, mode, duration, ease,
+  } = config
   const animate = mode !== 'none'
   // In transition mode the container scroll drives all horizontal motion — elements
   // must snap to their final positions so they move as one unit with the container.
   const animateScrollContent = animate && mode !== 'transition'
 
+  // Primary y-scale drives the horizontal grid (avoids ambiguous grid lines under disparate scales).
+  const primaryYScale = yScales.get(layout[0]!.id)!
+
   // ---- Grid ----
+  // Grid lives here because its lines must fall exactly on axis tick positions — using the same scale instances guarantees that.
+  // The grid is rendered through repurposed D3 axis elements without scale texts.
   if (settings.showGrid) {
     const yGrid = scrollG.select<SVGGElement>('.lc-grid-y')
     const yGridEl = yGrid.empty()
       ? scrollG.insert('g', ':first-child').attr('class', 'lc-grid-y')
       : yGrid
 
-    const yGridAxis = d3.axisLeft(yScale).tickSize(-innerWidth).tickFormat(() => '')
+    const yGridAxis = d3.axisLeft(primaryYScale).tickSize(-innerWidth).tickFormat(() => '')
     const applyYGrid = (sel: d3.Selection<SVGGElement, unknown, null, undefined>) => {
       sel.call(yGridAxis)
       sel.select('.domain').remove()
@@ -142,20 +164,69 @@ export function renderAxes(config: AxesConfig): void {
     exitTicks.remove()
   }
 
-  // ---- Y Axis (fixed, in innerG — rendered on top of chart area) ----
-  const yAxisGen = d3.axisLeft(yScale)
-  if (settings.yAxisFormatter !== null) {
-    yAxisGen.tickFormat((d, i) => settings.yAxisFormatter!(d as number, i))
-  }
+  // ---- Y Axes (one rail per axis in layout) ----
+  const showNames = layout.length >= 2
 
-  const yAxisEl = g.select<SVGGElement>('.lc-y-axis')
-  const yAxis = yAxisEl.empty()
-    ? g.append('g').attr('class', 'lc-y-axis')
-    : yAxisEl
+  // Data-join over axis groups so removed axes' chrome is cleaned up automatically.
+  const axisGroups = g
+    .selectAll<SVGGElement, AxisLayout>('.lc-y-axis')
+    .data(layout, a => a.id)
 
-  if (animate && duration > 0) {
-    yAxis.transition().duration(duration).call(yAxisGen)
-  } else {
-    yAxis.call(yAxisGen)
-  }
+  axisGroups.exit().remove()
+
+  const axisEnter = axisGroups.enter()
+    .append('g')
+    .attr('class', 'lc-y-axis')
+    .attr('data-axis-id', a => a.id)
+
+  const axisMerged = axisEnter.merge(axisGroups)
+    .attr('transform', a => `translate(${a.offsetX},0)`)
+
+  axisMerged.each(function (axis) {
+    const sel = d3.select<SVGGElement, AxisLayout>(this)
+    const yScale = yScales.get(axis.id)
+    if (!yScale) return
+
+    const gen = axis.position === 'right' ? d3.axisRight(yScale) : d3.axisLeft(yScale)
+    if (settings.yAxisFormatter !== null) {
+      gen.tickFormat((d, i) => settings.yAxisFormatter!(d as number, i))
+    }
+
+    if (animate && duration > 0) {
+      sel.transition().duration(duration).call(gen)
+    } else {
+      sel.call(gen)
+    }
+
+    // Axis colour paints only the lettering (tick labels + name) and the associated
+    // series — the rail and tick marks stay neutral so a series painted in the axis
+    // colour can never visually merge with another axis's rail.
+    const color = axis.color ?? 'currentColor'
+    sel.select('.domain').attr('stroke', 'currentColor')
+    sel.selectAll('.tick line').attr('stroke', 'currentColor')
+    // Force text-anchor in case this group previously rendered as the opposite axis side
+    // (e.g. axis promoted from right to left when a third axis is added).
+    sel.selectAll('.tick text')
+      .attr('fill', color)
+      .attr('text-anchor', axis.position === 'right' ? 'start' : 'end')
+
+    // Axis name above the rail — only shown when ≥ 2 axes exist.
+    const nameEl = sel.select<SVGTextElement>('.lc-y-axis-name')
+    if (showNames) {
+      const el = nameEl.empty()
+        ? sel.append<SVGTextElement>('text').attr('class', 'lc-y-axis-name')
+        : nameEl
+      el
+        .attr('y', -10)
+        .attr('x', 0)
+        .attr('text-anchor', axis.position === 'right' ? 'start' : 'end')
+        .attr('font-size', '11px')
+        .attr('font-family', 'sans-serif')
+        .attr('font-weight', '600')
+        .attr('fill', color)
+        .text(axis.name)
+    } else {
+      nameEl.remove()
+    }
+  })
 }

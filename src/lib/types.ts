@@ -89,8 +89,6 @@ export interface ChartSettings {
   // Rolling window — null means unlimited
   maxDataPoints: number | null
 
-  // Edge fade — px from each edge where content fades to transparent; 0 = disabled
-  edgeFadeWidth: number
 }
 
 /** Per-series appearance overrides */
@@ -99,6 +97,20 @@ export interface SeriesSettings {
   lineWeight?: number
   dotRadius?: number
   curveType?: CurveType
+  /** Id of the y-axis this series is plotted against; defaults to 'default'. Unknown ids fall back to a random axis. */
+  axis?: string
+}
+
+/** Per y-axis configuration */
+export interface AxisOptions {
+  /** Label shown above the rail when the chart has 2+ axes. Defaults to the axis id. */
+  name?: string
+  /** When set, paints the axis chrome AND overrides the line/dot colour of every series associated with this axis. */
+  color?: string
+  /** Hard-set domain [min, max]; if present the axis displays exactly this range and ignores `limits`. */
+  range?: [number, number]
+  /** Soft bounds — the auto-computed extent is clamped so the axis cannot extend below limits[0] nor above limits[1]. */
+  limits?: [number, number]
 }
 
 /** The object Blazor holds as IJSObjectReference */
@@ -145,4 +157,15 @@ export interface LineChartHandle {
   setSeriesColor(id: string, color: string): void
   /** Fast path — mutates stroke width for a named series */
   setSeriesWeight(id: string, weight: number): void
+
+  // --- Multi-axis API ---
+  /** Create or update a named y-axis. Sparse — only provided fields are written. */
+  createAxis(name: string, options?: AxisOptions): void
+  /**
+   * Remove a y-axis. Series previously bound to it migrate to the first remaining axis.
+   * No-op when removing the last remaining axis — the chart always keeps at least one.
+   */
+  removeAxis(name: string): void
+  /** Bind a series to an axis. Auto-creates the series if absent. Unknown axis ids are ignored with a warning. */
+  associateSeries(seriesName: string, axisName: string): void
 }

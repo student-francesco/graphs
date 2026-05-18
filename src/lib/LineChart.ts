@@ -3,15 +3,17 @@ import type {
   RawDataPoint,
   DataPoint,
   ChartSettings,
+  ChartMargins,
   CurveType,
   EasingType,
   LineChartHandle,
   AnimationMode,
   SeriesSettings,
+  AxisOptions,
 } from './types.ts'
-import { DEFAULT_SETTINGS } from './defaults.ts'
+import { DEFAULT_SETTINGS, AXIS_WIDTH } from './defaults.ts'
 import { renderSkeleton, removeSkeleton } from './skeleton.ts'
-import { renderAxes } from './axes.ts'
+import { renderAxes, type AxisLayout } from './axes.ts'
 import { TooltipController } from './tooltip.ts'
 
 const EASING_MAP: Record<EasingType, (t: number) => number> = {
@@ -47,10 +49,23 @@ interface SeriesState {
   lineWeight: number
   dotRadius: number
   curveType: CurveType
+  axisId: string
 }
+
+interface AxisState {
+  id: string
+  name: string
+  color: string | null
+  range: [number, number] | null
+  limits: [number, number] | null
+}
+
+const DEFAULT_AXIS_ID = 'default'
 
 interface HoverDatum extends DataPoint {
   seriesId: string
+  /** Precomputed pixel y — uses the series' own axis scale. */
+  _y: number
 }
 
 function parseRaw(raw: RawDataPoint): DataPoint {
@@ -74,6 +89,7 @@ export class LineChart implements LineChartHandle {
   private svg: d3.Selection<SVGSVGElement, unknown, null, undefined>
   private innerG: d3.Selection<SVGGElement, unknown, null, undefined>
   private series: Map<string, SeriesState> = new Map()
+  private axes: Map<string, AxisState> = new Map()
   private nextPaletteIndex = 0
   private static readonly PALETTE = [
     '#e11d48', '#0891b2', '#16a34a', '#d97706', '#7c3aed', '#db2777', '#0284c7', '#4f46e5',
@@ -93,11 +109,8 @@ export class LineChart implements LineChartHandle {
   private readonly fadeMaskId: string
   private fadeStopLeft: d3.Selection<SVGStopElement, unknown, null, undefined>
   private fadeStopLeft2: d3.Selection<SVGStopElement, unknown, null, undefined>
-  private fadeStopRight1: d3.Selection<SVGStopElement, unknown, null, undefined>
-  private fadeStopRight: d3.Selection<SVGStopElement, unknown, null, undefined>
   private fadeMaskRect: d3.Selection<SVGRectElement, unknown, null, undefined>
   private fadeBlurLeft!: HTMLDivElement
-  private fadeBlurRight!: HTMLDivElement
 
   // Render y-axis above blur
   private axisOverlaySvg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null
@@ -113,6 +126,15 @@ export class LineChart implements LineChartHandle {
     this.container = el
     this.settings = { ...DEFAULT_SETTINGS, ...settings }
 
+    // Seed the default y-axis. color:null preserves existing single-axis visual behaviour.
+    this.axes.set(DEFAULT_AXIS_ID, {
+      id: DEFAULT_AXIS_ID,
+      name: DEFAULT_AXIS_ID,
+      color: null,
+      range: null,
+      limits: null,
+    })
+
     // Initialise the default series
     this.series.set('default', {
       id: 'default',
@@ -122,6 +144,7 @@ export class LineChart implements LineChartHandle {
       lineWeight: this.settings.lineWeight,
       dotRadius: this.settings.dotRadius,
       curveType: this.settings.curveType,
+      axisId: DEFAULT_AXIS_ID,
     })
 
     const rect = this.container.getBoundingClientRect()
@@ -168,8 +191,6 @@ export class LineChart implements LineChartHandle {
 
     this.fadeStopLeft  = grad.append('stop')
     this.fadeStopLeft2 = grad.append('stop')
-    this.fadeStopRight1 = grad.append('stop')
-    this.fadeStopRight = grad.append('stop')
 
     this.fadeMaskRect = defs
       .append('mask')
@@ -181,10 +202,11 @@ export class LineChart implements LineChartHandle {
       .attr('height', this.innerHeight + 40)
       .attr('fill', `url(#${this.fadeGradId})`)
 
+    const initialMargins = this.effectiveMargins()
     this.innerG = this.svg
       .append('g')
       .attr('class', 'lc-inner')
-      .attr('transform', `translate(${this.settings.margins.left},${this.settings.margins.top})`)
+      .attr('transform', `translate(${initialMargins.left},${initialMargins.top})`)
 
     // Ensure container is a positioning context for the blur overlays
     if (getComputedStyle(this.container).position === 'static') {
@@ -203,13 +225,6 @@ export class LineChart implements LineChartHandle {
       `;mask-image:linear-gradient(to right,black 0%,black ${blurEnd}%,transparent 100%)` +
       `;-webkit-mask-image:linear-gradient(to right,black 0%,black ${blurEnd}%,transparent 100%)`
     this.container.appendChild(this.fadeBlurLeft)
-
-    this.fadeBlurRight = document.createElement('div')
-    this.fadeBlurRight.style.cssText =
-      blurStyle +
-      ';mask-image:linear-gradient(to left,black 0%,black 75%,transparent 100%)' +
-      ';-webkit-mask-image:linear-gradient(to left,black 0%,black 75%,transparent 100%)'
-    this.container.appendChild(this.fadeBlurRight)
 
     // Overlay SVG sits above the blur divs (z-index 2) and contains only the y-axis,
     this.axisOverlaySvg = d3
@@ -230,9 +245,9 @@ export class LineChart implements LineChartHandle {
     this.axisOverlayG = this.axisOverlaySvg
       .append('g')
       .attr('class', 'lc-axis-overlay')
-      .attr('transform', `translate(${this.settings.margins.left},${this.settings.margins.top})`)
+      .attr('transform', `translate(${initialMargins.left},${initialMargins.top})`)
 
-    renderSkeleton(this.svg, this.width, this.height, this.settings.margins)
+    renderSkeleton(this.svg, this.width, this.height, initialMargins)
 
     this.resizeObserver = new ResizeObserver(entries => {
       const entry = entries[0]
@@ -333,9 +348,10 @@ export class LineChart implements LineChartHandle {
     this.settings = { ...this.settings, lineColor: color }
     const s = this.defaultSeries()
     s.color = color
+    const painted = this.resolveStrokeColor(s)
     const g = this.innerG.select<SVGGElement>('.lc-series[data-id="default"]')
-    g.select('.lc-line').attr('stroke', color)
-    g.selectAll('.lc-dot').attr('fill', color)
+    g.select('.lc-line').attr('stroke', painted)
+    g.selectAll('.lc-dot').attr('fill', painted)
   }
 
   setLineWeight(weight: number): void {
@@ -375,11 +391,13 @@ export class LineChart implements LineChartHandle {
       lineWeight: this.settings.lineWeight,
       dotRadius: this.settings.dotRadius,
       curveType: this.settings.curveType,
+      axisId: this.axes.has(ds.axisId) ? ds.axisId : this.firstAxisId(),
     })
     this.nextPaletteIndex = 0
     this.innerG.selectAll('*').remove()
+    this.axisOverlayG?.selectAll('*').remove()
     this.hasSkeleton = true
-    renderSkeleton(this.svg, this.width, this.height, this.settings.margins)
+    renderSkeleton(this.svg, this.width, this.height, this.effectiveMargins())
   }
 
   destroy(): void {
@@ -390,7 +408,6 @@ export class LineChart implements LineChartHandle {
     this.svg.remove()
     this.axisOverlaySvg?.remove()
     this.fadeBlurLeft.remove()
-    this.fadeBlurRight.remove()
   }
 
   // --- Multi-series API ---
@@ -400,6 +417,10 @@ export class LineChart implements LineChartHandle {
     if (this.series.has(id)) return
     const color = settings?.color
       ?? LineChart.PALETTE[this.nextPaletteIndex++ % LineChart.PALETTE.length]
+    // Unknown axis ids (or a request for 'default' after it was removed) fall back to the
+    // first existing axis. The chart guarantees ≥ 1 axis at all times.
+    const requestedAxis = settings?.axis ?? DEFAULT_AXIS_ID
+    const axisId = this.axes.has(requestedAxis) ? requestedAxis : this.firstAxisId()
     this.series.set(id, {
       id,
       data: [],
@@ -408,6 +429,7 @@ export class LineChart implements LineChartHandle {
       lineWeight: settings?.lineWeight ?? this.settings.lineWeight,
       dotRadius: settings?.dotRadius ?? this.settings.dotRadius,
       curveType: settings?.curveType ?? this.settings.curveType,
+      axisId,
     })
   }
 
@@ -496,9 +518,10 @@ export class LineChart implements LineChartHandle {
     const s = this.series.get(id)
     if (!s) return
     s.color = color
+    const painted = this.resolveStrokeColor(s)
     const g = this.innerG.select<SVGGElement>(`.lc-series[data-id="${id}"]`)
-    g.select('.lc-line').attr('stroke', color)
-    g.selectAll('.lc-dot').attr('fill', color)
+    g.select('.lc-line').attr('stroke', painted)
+    g.selectAll('.lc-dot').attr('fill', painted)
   }
 
   setSeriesWeight(id: string, weight: number): void {
@@ -510,16 +533,123 @@ export class LineChart implements LineChartHandle {
       .select('.lc-line').attr('stroke-width', weight)
   }
 
+  // --- Multi-axis API ---
+
+  createAxis(name: string, options?: AxisOptions): void {
+    this.assertAlive()
+    const existing = this.axes.get(name)
+    if (existing) {
+      // Sparse upsert — only overwrite fields the caller actually provided.
+      if (options) {
+        if ('name' in options && options.name !== undefined) existing.name = options.name
+        if ('color' in options) existing.color = options.color ?? null
+        if ('range' in options) existing.range = options.range ?? null
+        if ('limits' in options) existing.limits = options.limits ?? null
+      }
+    } else {
+      this.axes.set(name, {
+        id: name,
+        name: options?.name ?? name,
+        color: options?.color ?? null,
+        range: options?.range ?? null,
+        limits: options?.limits ?? null,
+      })
+    }
+    if (this.hasData()) this.render('none')
+  }
+
+  removeAxis(name: string): void {
+    this.assertAlive()
+    if (!this.axes.has(name)) return
+    // Must guarantee one axis remains.
+    if (this.axes.size <= 1) return
+    this.axes.delete(name)
+    // Migrate orphaned series to the first remaining axis (insertion order).
+    const fallback = this.firstAxisId()
+    for (const s of this.series.values()) {
+      if (s.axisId === name) s.axisId = fallback
+    }
+    // Remove DOM chrome immediately so per-axis exit anims don't linger.
+    const overlay = this.axisOverlayG ?? this.innerG
+    overlay.select(`.lc-y-axis[data-axis-id="${name}"]`).remove()
+    if (this.hasData()) this.render('none')
+  }
+
+  associateSeries(seriesName: string, axisName: string): void {
+    this.assertAlive()
+    if (!this.axes.has(axisName)) {
+      console.warn(`LineChart: associateSeries — unknown axis "${axisName}"`)
+      return
+    }
+    if (!this.series.has(seriesName)) this.addSeries(seriesName)
+    const s = this.series.get(seriesName)!
+    s.axisId = axisName
+    if (this.hasData()) this.render('none')
+  }
+
   // ---------------------------------------------------------------------------
   // Private
   // ---------------------------------------------------------------------------
 
   private get innerWidth(): number {
-    return this.width - this.settings.margins.left - this.settings.margins.right
+    const m = this.effectiveMargins()
+    return this.width - m.left - m.right
   }
 
   private get innerHeight(): number {
-    return this.height - this.settings.margins.top - this.settings.margins.bottom
+    const m = this.effectiveMargins()
+    return this.height - m.top - m.bottom
+  }
+
+  /**
+   * Dynamic margins that reserve horizontal space for stacked y-axes on top of the user's
+   * configured base margins. Single-axis charts return the base margins unchanged.
+   */
+  private effectiveMargins(): ChartMargins {
+    const m = this.settings.margins
+    const count = this.axes.size
+    if (count <= 1) return m
+    if (count === 2) return { ...m, right: m.right + AXIS_WIDTH }
+    // 3+ axes: extra rails stack on the left (the first axis stays innermost at offsetX=0).
+    return { ...m, left: m.left + (count - 1) * AXIS_WIDTH }
+  }
+
+  /** Resolved per-axis render data. The first axis always sits innermost at offsetX=0. */
+  private buildAxisLayout(): AxisLayout[] {
+    const list = Array.from(this.axes.values())
+    if (list.length === 1) {
+      return [{ id: list[0].id, name: list[0].name, color: list[0].color, position: 'left', offsetX: 0 }]
+    }
+    if (list.length === 2) {
+      return [
+        { id: list[0].id, name: list[0].name, color: list[0].color, position: 'left', offsetX: 0 },
+        { id: list[1].id, name: list[1].name, color: list[1].color, position: 'right', offsetX: this.innerWidth },
+      ]
+    }
+    // 3+ axes: all left; first innermost at 0, then -AXIS_WIDTH, -2*AXIS_WIDTH, …
+    return list.map((a, i) => ({
+      id: a.id,
+      name: a.name,
+      color: a.color,
+      position: 'left' as const,
+      offsetX: -i * AXIS_WIDTH,
+    }))
+  }
+
+  /**
+   * Stroke / dot fill colour for a series: axis colour wins when set, otherwise the series'
+   * stored colour. Keeps `setLineColor` / `setSeriesColor` working as fast paths.
+   */
+  private resolveStrokeColor(s: SeriesState): string {
+    return this.axes.get(s.axisId)?.color ?? s.color
+  }
+
+  /**
+   * The id every fallback path resolves to when 'default' has been removed.
+   * The chart guarantees ≥ 1 axis, so this never returns undefined in practice.
+   */
+  private firstAxisId(): string {
+    return this.axes.keys().next().value as string
   }
 
   private defaultSeries(): SeriesState {
@@ -577,11 +707,9 @@ export class LineChart implements LineChartHandle {
   }
 
   private updateFadeMask(chartArea: d3.Selection<SVGGElement, unknown, null, undefined>): void {
-    const fw = this.settings.edgeFadeWidth
     const w = this.innerWidth
-    // Left fade: always active. Clip + fade-to-transparent starts halfway between the
-    // SVG left edge and the y-axis (i.e. margins.left / 2 to the left of x=0).
-    const leftExt = this.settings.margins.left / 2
+    const margins = this.effectiveMargins()
+    const leftExt = this.settings.margins.left
 
     // Mask rect spans from the left clip boundary to the right chart edge.
     // Extends vertically to cover x-axis tick marks and labels below innerHeight.
@@ -591,73 +719,93 @@ export class LineChart implements LineChartHandle {
       .attr('width', w + leftExt)
       .attr('height', this.innerHeight + 40)
 
-    // With objectBoundingBox the stop offsets are fractions of the mask rect width.
-    // 0% = left clip edge (x = -leftExt)   →  opacity 0 (fully transparent)
-    // yAxisFrac = y-axis position (x = 0)  →  opacity 1 (fully opaque)
-    // rightFrac = right-fade start          →  opacity 1
-    // 100% = right edge (x = innerWidth)   →  opacity 0 if edgeFadeWidth > 0, else 1
+    // With gradientUnits=objectBoundingBox the stop offsets are fractions of the mask rect width.
+    // 0% = left clip edge (x = -leftExt)  →  opacity 0 (fully transparent)
+    // yAxisFrac = y-axis position (x = 0) →  opacity 1 (fully opaque, holds to right edge)
     const totalW = w + leftExt
     const yAxisFrac = (leftExt / totalW * 100).toFixed(3)
-    const rightFrac = fw > 0
-      ? ((w - fw + leftExt) / totalW * 100).toFixed(3)
-      : '100'
 
     this.fadeStopLeft.attr('offset', '0%').attr('stop-color', 'white').attr('stop-opacity', 0.12)
     this.fadeStopLeft2.attr('offset', `${yAxisFrac}%`).attr('stop-color', 'white').attr('stop-opacity', 1)
-    this.fadeStopRight1.attr('offset', `${rightFrac}%`).attr('stop-color', 'white').attr('stop-opacity', 1)
-    this.fadeStopRight.attr('offset', '100%').attr('stop-color', 'white').attr('stop-opacity', fw > 0 ? 0.12 : 1)
 
-    // Left fade is always active; apply mask unconditionally.
     chartArea.attr('mask', `url(#${this.fadeMaskId})`)
 
-    // Position the HTML blur overlays to match the fade zones.
-    // Since viewBox = container dimensions, SVG units ≈ CSS pixels.
     this.fadeBlurLeft.style.left = '0'
-    this.fadeBlurLeft.style.width = `${this.settings.margins.left}px`
-
-    if (fw > 0) {
-      this.fadeBlurRight.style.display = 'block'
-      this.fadeBlurRight.style.right = `${this.settings.margins.right}px`
-      this.fadeBlurRight.style.width = `${fw}px`
-    } else {
-      this.fadeBlurRight.style.display = 'none'
-    }
+    this.fadeBlurLeft.style.width = `${margins.left}px`
   }
 
   private buildScales(): {
     xScale: d3.ScaleTime<number, number>
-    yScale: d3.ScaleLinear<number, number>
+    yScales: Map<string, d3.ScaleLinear<number, number>>
   } {
     const allPoints = Array.from(this.series.values()).flatMap(s => s.data)
     const xExtent = d3.extent(allPoints, d => d.date) as [Date, Date]
-    const yMax = d3.max(allPoints, d => d.value) ?? 0
-    const yMin = d3.min(allPoints, d => d.value) ?? 0
-    const yPad = (yMax - yMin) * 0.1 || 1
+
+    const yScales = new Map<string, d3.ScaleLinear<number, number>>()
+    for (const axis of this.axes.values()) {
+      yScales.set(axis.id, this.buildAxisYScale(axis))
+    }
 
     return {
       xScale: d3.scaleTime().domain(xExtent).range([0, this.innerWidth]),
-      yScale: d3.scaleLinear().domain([yMin - yPad, yMax + yPad]).nice().range([this.innerHeight, 0]),
+      yScales,
     }
+  }
+
+  /**
+   * Domain selection:
+   *   1. range present → use [range[0], range[1]] verbatim (no padding, no .nice()).
+   *   2. limits present → auto extent from associated series, clamped to limits, then padded + nice.
+   *   3. neither → auto extent from associated series, padded + nice.
+   * Axes with no associated data fall back to [0, 1] so the rail still renders cleanly.
+   */
+  private buildAxisYScale(axis: AxisState): d3.ScaleLinear<number, number> {
+    if (axis.range) {
+      return d3.scaleLinear().domain([axis.range[0], axis.range[1]]).range([this.innerHeight, 0])
+    }
+    const points = Array.from(this.series.values())
+      .filter(s => s.axisId === axis.id)
+      .flatMap(s => s.data)
+
+    if (points.length === 0) {
+      const [lo, hi] = axis.limits ?? [0, 1]
+      return d3.scaleLinear().domain([lo, hi]).nice().range([this.innerHeight, 0])
+    }
+
+    let yMin = d3.min(points, d => d.value) ?? 0
+    let yMax = d3.max(points, d => d.value) ?? 0
+    if (axis.limits) {
+      yMin = Math.max(yMin, axis.limits[0])
+      yMax = Math.min(yMax, axis.limits[1])
+      if (yMax < yMin) [yMin, yMax] = [axis.limits[0], axis.limits[1]]
+    }
+    const yPad = (yMax - yMin) * 0.1 || 1
+    return d3.scaleLinear().domain([yMin - yPad, yMax + yPad]).nice().range([this.innerHeight, 0])
   }
 
   private render(mode: AnimationMode): void {
     if (!this.hasData()) return
 
     const duration = mode !== 'none' ? this.settings.animationDuration : 0
-    const { xScale, yScale } = this.buildScales()
+    const { xScale, yScales } = this.buildScales()
+    const layout = this.buildAxisLayout()
+    const primaryYScale = yScales.get(layout[0].id)!
 
     const animatingStill = this.lastRender + duration > Date.now();
     const ease = animatingStill ? EASING_MAP.easeExpOut : EASING_MAP[this.settings.easingType]
 
-    const innerTransform = `translate(${this.settings.margins.left},${this.settings.margins.top})`
+    const margins = this.effectiveMargins()
+    const innerTransform = `translate(${margins.left},${margins.top})`
     this.innerG.attr('transform', innerTransform)
     this.axisOverlayG?.attr('transform', innerTransform)
 
+    // See updateFadeMask: leftExt is sized against the BASE margin so stacked axes'
+    // label columns don't become part of the chart's clip area.
     const leftExt = this.settings.margins.left / 2
     const yAxisLabels = 32 // approximated
     this.clipRect
       .attr('x', -leftExt)
-      .attr('width', this.innerWidth + leftExt)
+      .attr('width', this.innerWidth + leftExt + this.settings.margins.right)
       .attr('height', this.innerHeight + yAxisLabels)
 
     // lc-chart-area: static wrapper with clip-path + mask — must exist before
@@ -700,7 +848,8 @@ export class LineChart implements LineChartHandle {
       chartAreaG: chartArea,
       scrollG: scrollContainer,
       xScale,
-      yScale,
+      yScales,
+      layout,
       innerWidth: this.innerWidth,
       innerHeight: this.innerHeight,
       settings: this.settings,
@@ -722,15 +871,19 @@ export class LineChart implements LineChartHandle {
       .attr('data-id', s => s.id)
       .merge(groups)
 
+    const yScaleFor = (s: SeriesState): d3.ScaleLinear<number, number> =>
+      yScales.get(s.axisId) ?? primaryYScale
+
     merged.each((s, i, nodes) => {
       const g = d3.select<SVGGElement, SeriesState>(nodes[i] as SVGGElement)
       const curve = CURVE_MAP[s.curveType]
+      const yScale = yScaleFor(s)
       this.renderLine(g, s, xScale, yScale, curve, mode, duration, ease)
       this.renderDots(g, s, xScale, yScale, mode, duration, ease)
     })
 
     if (this.settings.showTooltip && this.tooltip !== null) {
-      this.renderHoverZones(scrollContainer, xScale, yScale)
+      this.renderHoverZones(scrollContainer, xScale, yScaleFor)
     }
 
     // Reshift exiting elements so they don't jump when the container is repositioned.
@@ -797,7 +950,7 @@ export class LineChart implements LineChartHandle {
     const path = (isNew ? g.append('path') : existing)
       .attr('class', 'lc-line')
       .attr('fill', 'none')
-      .attr('stroke', series.color)
+      .attr('stroke', this.resolveStrokeColor(series))
       .attr('stroke-width', series.lineWeight)
       .attr('stroke-linecap', 'round')
       .attr('stroke-linejoin', 'round')
@@ -873,6 +1026,7 @@ export class LineChart implements LineChartHandle {
       .selectAll<SVGCircleElement, DataPoint>('.lc-dot')
       .data(joinData, d => d.date.getTime())
 
+    const dotColor = this.resolveStrokeColor(series)
     const enter = dots
       .enter()
       .append('circle')
@@ -880,11 +1034,11 @@ export class LineChart implements LineChartHandle {
       .attr('cx', d => xScale(d.date))
       .attr('cy', d => yScale(d.value))
       .attr('r', 0)
-      .attr('fill', series.color)
+      .attr('fill', dotColor)
       .attr('stroke', '#fff')
       .attr('stroke-width', 2)
 
-    const merged = enter.merge(dots).attr('fill', series.color)
+    const merged = enter.merge(dots).attr('fill', dotColor)
 
     if (mode === 'morph' && duration > 0) {
       merged
@@ -915,7 +1069,7 @@ export class LineChart implements LineChartHandle {
   private renderHoverZones(
     scrollContainer: d3.Selection<SVGGElement, unknown, null, undefined>,
     xScale: d3.ScaleTime<number, number>,
-    yScale: d3.ScaleLinear<number, number>,
+    yScaleFor: (series: SeriesState) => d3.ScaleLinear<number, number>,
   ): void {
     const hitRadius = Math.max(
       Math.max(...Array.from(this.series.values()).map(s => s.dotRadius)),
@@ -928,8 +1082,13 @@ export class LineChart implements LineChartHandle {
       zonesG = scrollContainer.append('g').attr('class', 'lc-hover-zones')
     }
 
-    const allData: HoverDatum[] = Array.from(this.series.values())
-      .flatMap(s => s.data.map(d => ({ ...d, seriesId: s.id })))
+    // Each datum carries its own y-scale via the series it came from, so dots on
+    // different axes get accurate hit positions.
+    const allData: HoverDatum[] = []
+    for (const s of this.series.values()) {
+      const yScale = yScaleFor(s)
+      for (const d of s.data) allData.push({ ...d, seriesId: s.id, _y: yScale(d.value) })
+    }
 
     const zones = zonesG
       .selectAll<SVGCircleElement, HoverDatum>('.lc-hover-zone')
@@ -945,7 +1104,7 @@ export class LineChart implements LineChartHandle {
       .attr('cursor', 'crosshair')
       .merge(zones)
       .attr('cx', d => xScale(d.date))
-      .attr('cy', d => yScale(d.value))
+      .attr('cy', d => d._y)
       .on('mouseenter', (event: MouseEvent, d: HoverDatum) => {
         this.tooltip?.show(event, d)
       })

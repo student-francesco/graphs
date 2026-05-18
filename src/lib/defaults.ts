@@ -1,5 +1,8 @@
 import type { ChartSettings } from './types.ts'
 
+/** Horizontal space reserved per additional stacked y-axis (px) */
+export const AXIS_WIDTH = 50
+
 export const DEFAULT_SETTINGS: ChartSettings = {
   curveType: 'monotoneX',
   lineWeight: 2,
@@ -32,6 +35,4 @@ export const DEFAULT_SETTINGS: ChartSettings = {
   appendAnimation: 'none',
 
   maxDataPoints: null,
-
-  edgeFadeWidth: 0,
 }

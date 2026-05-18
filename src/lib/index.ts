@@ -6,6 +6,7 @@ export type {
   CurveType,
   AnimationMode,
   SeriesSettings,
+  AxisOptions,
   LineChartHandle,
 } from './types.ts'
 export { DEFAULT_SETTINGS } from './defaults.ts'
@@ -47,5 +48,8 @@ export function createLineChart(
     appendSeriesDataPoints: chart.appendSeriesDataPoints.bind(chart),
     setSeriesColor: chart.setSeriesColor.bind(chart),
     setSeriesWeight: chart.setSeriesWeight.bind(chart),
+    createAxis: chart.createAxis.bind(chart),
+    removeAxis: chart.removeAxis.bind(chart),
+    associateSeries: chart.associateSeries.bind(chart),
   }
 }
