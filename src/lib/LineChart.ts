@@ -353,6 +353,13 @@ export class LineChart implements LineChartHandle {
       this.ensureTooltip()
     }
 
+    if (settings.dotRadius !== undefined)
+      this.series.forEach(s => { s.dotRadius = settings.dotRadius! })
+    if (settings.curveType !== undefined)
+      this.series.forEach(s => { s.curveType = settings.curveType! })
+    if (settings.lineWeight !== undefined)
+      this.series.forEach(s => { s.lineWeight = settings.lineWeight! })
+
     if (this.hasData()) this.render('none')
     else this.renderTitleAndLabels()
   }
