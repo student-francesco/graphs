@@ -210,14 +210,15 @@ export function renderAxes(config: AxesConfig): void {
       .attr('fill', color)
       .attr('text-anchor', axis.position === 'right' ? 'start' : 'end')
 
-    // Axis name above the rail — only shown when ≥ 2 axes exist.
+    // Axis name below the chart baseline — only shown when ≥ 2 axes exist.
     const nameEl = sel.select<SVGTextElement>('.lc-y-axis-name')
     if (showNames) {
       const el = nameEl.empty()
         ? sel.append<SVGTextElement>('text').attr('class', 'lc-y-axis-name')
         : nameEl
       el
-        .attr('y', -10)
+        .attr('y', innerHeight + 9)
+        .attr('dy', '0.71em')
         .attr('x', 0)
         .attr('text-anchor', axis.position === 'right' ? 'start' : 'end')
         .attr('font-size', '11px')
