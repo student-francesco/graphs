@@ -550,3 +550,12 @@ decimationSlider.addEventListener('input', () => {
   chart.updateSettings({ decimation })
   setLog(`updateSettings({ decimation: ${decimation} })`)
 })
+
+document.getElementById('btn-load-dense')!.addEventListener('click', () => {
+  const data = generateSeries(500)
+  seriesDataMap.set('default', data)
+  currentData = data
+  chart.updateSettings({ maxDataPoints: null })
+  chart.setData(data)
+  setLog('setData(500 points, maxDataPoints disabled — use threshold slider to decimate)')
+})
