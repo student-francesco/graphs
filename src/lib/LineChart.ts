@@ -15,6 +15,7 @@ import { DEFAULT_SETTINGS, AXIS_WIDTH } from './defaults.ts'
 import { renderSkeleton, removeSkeleton } from './skeleton.ts'
 import { renderAxes, type AxisLayout } from './axes.ts'
 import { TooltipController } from './tooltip.ts'
+import { buildPdf } from './pdf.ts'
 
 const EASING_MAP: Record<EasingType, (t: number) => number> = {
   easeLinear:      d3.easeLinear,
@@ -410,6 +411,72 @@ export class LineChart implements LineChartHandle {
     this.hasSkeleton = true
     this.svg.node()!.dataset.theme = this.settings.theme
     renderSkeleton(this.svg, this.width, this.height, this.effectiveMargins())
+  }
+
+  async saveToPdf(filename = 'chart'): Promise<void> {
+    this.assertAlive()
+
+    // 1. Clone and compose both SVGs into one for export
+    const mainSvg = this.svg.node()!
+    const overlaySvg = this.axisOverlaySvg?.node() ?? null
+
+    const mainClone = mainSvg.cloneNode(true) as SVGSVGElement
+    if (overlaySvg) {
+      const overlayClone = overlaySvg.cloneNode(true) as SVGSVGElement
+      // Move overlay children into the main clone as a final <g>
+      const overlayG = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+      while (overlayClone.firstChild) overlayG.appendChild(overlayClone.firstChild)
+      mainClone.appendChild(overlayG)
+    }
+
+    // Fix currentColor → resolved color so the canvas render looks correct
+    const containerColor = getComputedStyle(this.container).color || '#374151'
+    const svgStr = new XMLSerializer().serializeToString(mainClone)
+      .replace(/currentColor/g, containerColor)
+
+    // 2. Rasterize SVG → canvas → JPEG
+    const w = this.width
+    const h = this.height
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, w, h)
+
+    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    await new Promise<void>((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => { ctx.drawImage(img, 0, 0); URL.revokeObjectURL(url); resolve() }
+      img.onerror = (e) => { URL.revokeObjectURL(url); reject(e) }
+      img.src = url
+    })
+
+    // 3. Get JPEG bytes
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.95)
+    const jpegBase64 = jpegDataUrl.slice('data:image/jpeg;base64,'.length)
+    const jpegBinary = atob(jpegBase64)
+    const jpegBytes = new Uint8Array(jpegBinary.length)
+    for (let i = 0; i < jpegBinary.length; i++) jpegBytes[i] = jpegBinary.charCodeAt(i)
+
+    // 4. Build PDF (pixels → points: 1px ≈ 0.75pt at 96 DPI)
+    const widthPt = Math.round(w * 0.75)
+    const heightPt = Math.round(h * 0.75)
+    const pdfBytes = buildPdf(jpegBytes, widthPt, heightPt)
+
+    // 5. Trigger download
+    // Copy into a new ArrayBuffer (not SharedArrayBuffer) to satisfy TypeScript's BlobPart
+    const pdfBuffer = new ArrayBuffer(pdfBytes.byteLength)
+    new Uint8Array(pdfBuffer).set(pdfBytes)
+    const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(pdfBlob)
+    a.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(a.href)
   }
 
   destroy(): void {
