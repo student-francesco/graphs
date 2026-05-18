@@ -163,6 +163,8 @@ export class LineChart implements LineChartHandle {
       .attr('role', 'img')
       .attr('aria-label', this.settings.ariaLabel)
 
+    this.svg.node()!.dataset.theme = this.settings.theme
+
     const defs = this.svg.append('defs')
 
     // Clip path — hard boundary for scroll container
@@ -332,13 +334,21 @@ export class LineChart implements LineChartHandle {
   updateSettings(settings: Partial<ChartSettings>): void {
     this.assertAlive()
     const hadTooltip = this.settings.showTooltip
+    const prevTheme = this.settings.theme
     this.settings = { ...this.settings, ...settings }
+    this.svg.node()!.dataset.theme = this.settings.theme
 
     if (!hadTooltip && this.settings.showTooltip && this.hasData()) {
       this.ensureTooltip()
     } else if (hadTooltip && !this.settings.showTooltip) {
       this.tooltip?.destroy()
       this.tooltip = null
+    }
+
+    if (this.tooltip && prevTheme !== this.settings.theme) {
+      this.tooltip.destroy()
+      this.tooltip = null
+      this.ensureTooltip()
     }
 
     if (this.hasData()) this.render('none')
@@ -398,6 +408,7 @@ export class LineChart implements LineChartHandle {
     this.innerG.selectAll('*').remove()
     this.axisOverlayG?.selectAll('*').remove()
     this.hasSkeleton = true
+    this.svg.node()!.dataset.theme = this.settings.theme
     renderSkeleton(this.svg, this.width, this.height, this.effectiveMargins())
   }
 
@@ -1029,6 +1040,7 @@ export class LineChart implements LineChartHandle {
       .data(joinData, d => d.date.getTime())
 
     const dotColor = this.resolveStrokeColor(series)
+    const dotStroke = this.settings.theme === 'dark' ? '#1a1815' : '#fff'
     const enter = dots
       .enter()
       .append('circle')
@@ -1036,11 +1048,11 @@ export class LineChart implements LineChartHandle {
       .attr('cx', d => xScale(d.date))
       .attr('cy', d => yScale(d.value))
       .attr('r', 0)
-      .attr('fill', dotColor)
-      .attr('stroke', '#fff')
       .attr('stroke-width', 2)
 
-    const merged = enter.merge(dots).attr('fill', dotColor)
+    const merged = enter.merge(dots)
+      .attr('fill', dotColor)
+      .attr('stroke', dotStroke)
 
     if (mode === 'morph' && duration > 0) {
       merged

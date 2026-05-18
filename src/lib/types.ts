@@ -94,6 +94,9 @@ export interface ChartSettings {
   /** d3-format specifier for label values; null falls back to tooltipValueFormat */
   labelFormat: string | null
 
+  /** Visual theme. Drives dot stroke, tooltip palette, and skeleton shimmer. */
+  theme: 'light' | 'dark'
+
 }
 
 /** Per-series appearance overrides */

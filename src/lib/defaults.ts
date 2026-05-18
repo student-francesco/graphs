@@ -38,4 +38,6 @@ export const DEFAULT_SETTINGS: ChartSettings = {
 
   showLabels: false,
   labelFormat: null,
+
+  theme: 'light',
 }

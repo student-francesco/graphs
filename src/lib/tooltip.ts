@@ -18,8 +18,10 @@ export class TooltipController {
       pointerEvents: 'none',
       opacity: '0',
       transition: 'opacity 0.15s',
-      background: 'rgba(17,24,39,0.9)',
-      color: '#f9fafb',
+      background: settings.theme === 'dark'
+        ? 'rgba(245,243,238,0.95)'
+        : 'rgba(17,24,39,0.9)',
+      color: settings.theme === 'dark' ? '#1a1815' : '#f9fafb',
       padding: '6px 10px',
       borderRadius: '6px',
       fontSize: '13px',
