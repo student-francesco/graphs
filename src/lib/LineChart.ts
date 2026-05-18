@@ -366,6 +366,10 @@ export class LineChart implements LineChartHandle {
       this.series.forEach(s => { s.curveType = settings.curveType! })
     if (settings.lineWeight !== undefined)
       this.series.forEach(s => { s.lineWeight = settings.lineWeight! })
+    if (settings.yScaleType !== undefined) {
+      const primary = this.axes.get(DEFAULT_AXIS_ID)
+      if (primary) primary.scaleType = settings.yScaleType
+    }
 
     if (this.hasData()) this.render('none')
     else this.renderTitleAndLabels()
