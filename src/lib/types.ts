@@ -89,6 +89,9 @@ export interface ChartSettings {
   // Rolling window — null means unlimited
   maxDataPoints: number | null
 
+  /** Visual theme. Drives dot stroke, tooltip palette, and skeleton shimmer. */
+  theme: 'light' | 'dark'
+
 }
 
 /** Per-series appearance overrides */

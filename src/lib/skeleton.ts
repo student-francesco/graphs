@@ -29,9 +29,13 @@ export function renderSkeleton(
     .attr('y1', '0')
     .attr('y2', '0')
 
-  gradient.append('stop').attr('offset', '0%').attr('stop-color', '#e5e7eb')
-  gradient.append('stop').attr('offset', '50%').attr('stop-color', '#f3f4f6')
-  gradient.append('stop').attr('offset', '100%').attr('stop-color', '#e5e7eb')
+  const isDark = svg.node()?.dataset.theme === 'dark'
+  const sk0 = isDark ? '#2a2723' : '#e5e7eb'
+  const sk1 = isDark ? '#3a3631' : '#f3f4f6'
+
+  gradient.append('stop').attr('offset', '0%').attr('stop-color', sk0)
+  gradient.append('stop').attr('offset', '50%').attr('stop-color', sk1)
+  gradient.append('stop').attr('offset', '100%').attr('stop-color', sk0)
 
   gradient
     .append('animateTransform')
