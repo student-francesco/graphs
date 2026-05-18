@@ -12,6 +12,7 @@ import type {
   AxisOptions,
 } from './types.ts'
 import { DEFAULT_SETTINGS, AXIS_WIDTH, TITLE_SPACE, X_LABEL_SPACE, Y_LABEL_SPACE } from './defaults.ts'
+import { movingAverage } from './transforms.ts'
 import { renderSkeleton, removeSkeleton } from './skeleton.ts'
 import { renderAxes, type AxisLayout } from './axes.ts'
 import { TooltipController } from './tooltip.ts'
@@ -42,6 +43,8 @@ const CURVE_MAP: Record<CurveType, d3.CurveFactory | d3.CurveFactoryLineOnly> = 
   stepAfter: d3.curveStepAfter,
 }
 
+type YScale = d3.ScaleLinear<number, number> | d3.ScaleLogarithmic<number, number>
+
 interface SeriesState {
   id: string
   data: DataPoint[]
@@ -51,6 +54,7 @@ interface SeriesState {
   dotRadius: number
   curveType: CurveType
   axisId: string
+  smoothing: number | undefined
 }
 
 interface AxisState {
@@ -59,6 +63,7 @@ interface AxisState {
   color: string | null
   range: [number, number] | null
   limits: [number, number] | null
+  scaleType: 'linear' | 'log'
 }
 
 const DEFAULT_AXIS_ID = 'default'
@@ -135,6 +140,7 @@ export class LineChart implements LineChartHandle {
       color: null,
       range: null,
       limits: null,
+      scaleType: this.settings.yScaleType,
     })
 
     // Initialise the default series
@@ -147,6 +153,7 @@ export class LineChart implements LineChartHandle {
       dotRadius: this.settings.dotRadius,
       curveType: this.settings.curveType,
       axisId: DEFAULT_AXIS_ID,
+      smoothing: undefined,
     })
 
     const rect = this.container.getBoundingClientRect()
@@ -406,6 +413,7 @@ export class LineChart implements LineChartHandle {
       dotRadius: this.settings.dotRadius,
       curveType: this.settings.curveType,
       axisId: this.axes.has(ds.axisId) ? ds.axisId : this.firstAxisId(),
+      smoothing: ds.smoothing,
     })
     this.nextPaletteIndex = 0
     this.innerG.selectAll('*').remove()
@@ -512,6 +520,7 @@ export class LineChart implements LineChartHandle {
       dotRadius: settings?.dotRadius ?? this.settings.dotRadius,
       curveType: settings?.curveType ?? this.settings.curveType,
       axisId,
+      smoothing: settings?.smoothing,
     })
   }
 
@@ -635,6 +644,7 @@ export class LineChart implements LineChartHandle {
         color: options?.color ?? null,
         range: options?.range ?? null,
         limits: options?.limits ?? null,
+        scaleType: 'linear',
       })
     }
     if (this.hasData()) this.render('none')
@@ -703,12 +713,21 @@ export class LineChart implements LineChartHandle {
   private buildAxisLayout(): AxisLayout[] {
     const list = Array.from(this.axes.values())
     if (list.length === 1) {
-      return [{ id: list[0].id, name: list[0].name, color: list[0].color, position: 'left', offsetX: 0 }]
+      return [{
+        id: list[0].id, name: list[0].name, color: list[0].color,
+        position: 'left', offsetX: 0, scaleType: list[0].scaleType,
+      }]
     }
     if (list.length === 2) {
       return [
-        { id: list[0].id, name: list[0].name, color: list[0].color, position: 'left', offsetX: 0 },
-        { id: list[1].id, name: list[1].name, color: list[1].color, position: 'right', offsetX: this.innerWidth },
+        {
+          id: list[0].id, name: list[0].name, color: list[0].color,
+          position: 'left', offsetX: 0, scaleType: list[0].scaleType,
+        },
+        {
+          id: list[1].id, name: list[1].name, color: list[1].color,
+          position: 'right', offsetX: this.innerWidth, scaleType: list[1].scaleType,
+        },
       ]
     }
     // 3+ axes: all left; first innermost at 0, then -AXIS_WIDTH, -2*AXIS_WIDTH, …
@@ -718,6 +737,7 @@ export class LineChart implements LineChartHandle {
       color: a.color,
       position: 'left' as const,
       offsetX: -i * AXIS_WIDTH,
+      scaleType: a.scaleType,
     }))
   }
 
@@ -819,14 +839,19 @@ export class LineChart implements LineChartHandle {
     this.fadeBlurLeft.style.width = `${margins.left}px`
   }
 
+  private getSmoothedData(series: SeriesState): DataPoint[] {
+    const w = series.smoothing ?? this.settings.smoothing
+    return movingAverage(series.data, w)
+  }
+
   private buildScales(): {
     xScale: d3.ScaleTime<number, number>
-    yScales: Map<string, d3.ScaleLinear<number, number>>
+    yScales: Map<string, YScale>
   } {
     const allPoints = Array.from(this.series.values()).flatMap(s => s.data)
     const xExtent = d3.extent(allPoints, d => d.date) as [Date, Date]
 
-    const yScales = new Map<string, d3.ScaleLinear<number, number>>()
+    const yScales = new Map<string, YScale>()
     for (const axis of this.axes.values()) {
       yScales.set(axis.id, this.buildAxisYScale(axis))
     }
@@ -844,16 +869,27 @@ export class LineChart implements LineChartHandle {
    *   3. neither → auto extent from associated series, padded + nice.
    * Axes with no associated data fall back to [0, 1] so the rail still renders cleanly.
    */
-  private buildAxisYScale(axis: AxisState): d3.ScaleLinear<number, number> {
+  private buildAxisYScale(axis: AxisState): YScale {
+    const isLog = axis.scaleType === 'log'
+
     if (axis.range) {
+      if (isLog) {
+        const lo = Math.max(axis.range[0], 1e-10)
+        const hi = Math.max(axis.range[1], 1e-9)
+        return d3.scaleLog().base(10).domain([lo, hi]).range([this.innerHeight, 0])
+      }
       return d3.scaleLinear().domain([axis.range[0], axis.range[1]]).range([this.innerHeight, 0])
     }
+
     const points = Array.from(this.series.values())
       .filter(s => s.axisId === axis.id)
-      .flatMap(s => s.data)
+      .flatMap(s => this.getSmoothedData(s))
 
     if (points.length === 0) {
-      const [lo, hi] = axis.limits ?? [0, 1]
+      const [lo, hi] = axis.limits ?? (isLog ? [0.1, 10] : [0, 1])
+      if (isLog) {
+        return d3.scaleLog().base(10).domain([Math.max(lo, 1e-10), Math.max(hi, 1e-9)]).range([this.innerHeight, 0])
+      }
       return d3.scaleLinear().domain([lo, hi]).nice().range([this.innerHeight, 0])
     }
 
@@ -864,6 +900,18 @@ export class LineChart implements LineChartHandle {
       yMax = Math.min(yMax, axis.limits[1])
       if (yMax < yMin) [yMin, yMax] = [axis.limits[0], axis.limits[1]]
     }
+
+    if (isLog) {
+      const rawMin = yMin
+      const rawMax = yMax
+      const clampedMin = Math.max(yMin, 1e-10)
+      const clampedMax = Math.max(yMax, 1e-9)
+      if (clampedMin !== rawMin || clampedMax !== rawMax) {
+        console.warn('LineChart: log scale domain clamped to positive values', { rawMin, rawMax, clampedMin, clampedMax })
+      }
+      return d3.scaleLog().base(10).domain([clampedMin, clampedMax]).range([this.innerHeight, 0])
+    }
+
     const yPad = (yMax - yMin) * 0.1 || 1
     return d3.scaleLinear().domain([yMin - yPad, yMax + yPad]).nice().range([this.innerHeight, 0])
   }
@@ -956,16 +1004,17 @@ export class LineChart implements LineChartHandle {
       .attr('data-id', s => s.id)
       .merge(groups)
 
-    const yScaleFor = (s: SeriesState): d3.ScaleLinear<number, number> =>
+    const yScaleFor = (s: SeriesState): YScale =>
       yScales.get(s.axisId) ?? primaryYScale
 
     merged.each((s, i, nodes) => {
       const g = d3.select<SVGGElement, SeriesState>(nodes[i] as SVGGElement)
       const curve = CURVE_MAP[s.curveType]
       const yScale = yScaleFor(s)
-      this.renderLine(g, s, xScale, yScale, curve, mode, duration, ease)
-      this.renderDots(g, s, xScale, yScale, mode, duration, ease)
-      this.renderLabels(g, s, xScale, yScale, mode, duration, ease)
+      const smoothed = this.getSmoothedData(s)
+      this.renderLine(g, s, smoothed, xScale, yScale, curve, mode, duration, ease)
+      this.renderDots(g, s, smoothed, xScale, yScale, mode, duration, ease)
+      this.renderLabels(g, s, smoothed, xScale, yScale, mode, duration, ease)
     })
 
     if (this.settings.showTooltip && this.tooltip !== null) {
@@ -1083,8 +1132,9 @@ export class LineChart implements LineChartHandle {
   private renderLine(
     g: d3.Selection<SVGGElement, SeriesState, null, undefined>,
     series: SeriesState,
+    smoothed: DataPoint[],
     xScale: d3.ScaleTime<number, number>,
-    yScale: d3.ScaleLinear<number, number>,
+    yScale: YScale,
     curve: d3.CurveFactory | d3.CurveFactoryLineOnly,
     mode: AnimationMode,
     duration: number,
@@ -1113,7 +1163,7 @@ export class LineChart implements LineChartHandle {
     const useDrawOn = mode === 'drawOn' || ((mode === 'transition' || mode === 'morph') && isNew)
 
     if (useDrawOn && duration > 0) {
-      path.attr('d', lineGen(series.data) ?? '')
+      path.attr('d', lineGen(smoothed) ?? '')
       const totalLength = path.node()?.getTotalLength() ?? 0
       path
         .attr('stroke-dasharray', `${totalLength} ${totalLength}`)
@@ -1129,8 +1179,8 @@ export class LineChart implements LineChartHandle {
       // D3 path morph — include exit points so control-point count stays identical
       const renderData =
         series.pendingExitPoints.length > 0
-          ? [...series.pendingExitPoints, ...series.data]
-          : series.data
+          ? [...series.pendingExitPoints, ...smoothed]
+          : smoothed
       path
         .transition()
         .duration(duration)
@@ -1141,15 +1191,15 @@ export class LineChart implements LineChartHandle {
       // Include exit points (at negative x) so the leftmost segment clips off cleanly.
       const renderData =
         series.pendingExitPoints.length > 0
-          ? [...series.pendingExitPoints, ...series.data]
-          : series.data
+          ? [...series.pendingExitPoints, ...smoothed]
+          : smoothed
       path
         .attr('d', lineGen(renderData) ?? '')
         .attr('stroke-dasharray', null)
         .attr('stroke-dashoffset', null)
     } else {
       path
-        .attr('d', lineGen(series.data) ?? '')
+        .attr('d', lineGen(smoothed) ?? '')
         .attr('stroke-dasharray', null)
         .attr('stroke-dashoffset', null)
     }
@@ -1158,8 +1208,9 @@ export class LineChart implements LineChartHandle {
   private renderDots(
     g: d3.Selection<SVGGElement, SeriesState, null, undefined>,
     series: SeriesState,
+    smoothed: DataPoint[],
     xScale: d3.ScaleTime<number, number>,
-    yScale: d3.ScaleLinear<number, number>,
+    yScale: YScale,
     mode: AnimationMode,
     duration: number,
     ease: (t: number) => number,
@@ -1171,8 +1222,8 @@ export class LineChart implements LineChartHandle {
 
     const joinData =
       series.pendingExitPoints.length > 0
-        ? [...series.pendingExitPoints, ...series.data]
-        : series.data
+        ? [...series.pendingExitPoints, ...smoothed]
+        : smoothed
 
     const dots = g
       .selectAll<SVGCircleElement, DataPoint>('.lc-dot')
@@ -1223,8 +1274,9 @@ export class LineChart implements LineChartHandle {
   private renderLabels(
     g: d3.Selection<SVGGElement, SeriesState, null, undefined>,
     series: SeriesState,
+    smoothed: DataPoint[],
     xScale: d3.ScaleTime<number, number>,
-    yScale: d3.ScaleLinear<number, number>,
+    yScale: YScale,
     mode: AnimationMode,
     duration: number,
     ease: (t: number) => number,
@@ -1240,7 +1292,7 @@ export class LineChart implements LineChartHandle {
 
     const labels = g
       .selectAll<SVGTextElement, DataPoint>('.lc-label')
-      .data(series.data, d => d.date.getTime())
+      .data(smoothed, d => d.date.getTime())
 
     const enter = labels
       .enter()
@@ -1279,7 +1331,7 @@ export class LineChart implements LineChartHandle {
   private renderHoverZones(
     scrollContainer: d3.Selection<SVGGElement, unknown, null, undefined>,
     xScale: d3.ScaleTime<number, number>,
-    yScaleFor: (series: SeriesState) => d3.ScaleLinear<number, number>,
+    yScaleFor: (series: SeriesState) => YScale,
   ): void {
     const hitRadius = Math.max(
       Math.max(...Array.from(this.series.values()).map(s => s.dotRadius)),
