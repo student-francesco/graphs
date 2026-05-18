@@ -47,6 +47,7 @@ export const DEFAULT_SETTINGS: ChartSettings = {
   labelFormat: null,
 
   theme: 'light',
+  dotBorderColor: null,
 
   title: null,
   xLabel: null,

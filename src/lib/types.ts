@@ -97,6 +97,13 @@ export interface ChartSettings {
   /** Visual theme. Drives dot stroke, tooltip palette, and skeleton shimmer. */
   theme: 'light' | 'dark'
 
+  /**
+   * Border colour of marker dots. Set this to match the chart's background colour
+   * so the stroke blends in and "hides" the line beneath each dot.
+   * null = auto-derived from `theme` (#fff for light, #1a1815 for dark).
+   */
+  dotBorderColor: string | null
+
   /** Chart title rendered centred above the plot area. null = hidden. */
   title: string | null
   /** Label for the x-axis, rendered centred below the axis ticks. null = hidden. */

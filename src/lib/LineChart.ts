@@ -1179,7 +1179,8 @@ export class LineChart implements LineChartHandle {
       .data(joinData, d => d.date.getTime())
 
     const dotColor = this.resolveStrokeColor(series)
-    const dotStroke = this.settings.theme === 'dark' ? '#1a1815' : '#fff'
+    const dotStroke = this.settings.dotBorderColor
+      ?? (this.settings.theme === 'dark' ? '#1a1815' : '#fff')
     const enter = dots
       .enter()
       .append('circle')
