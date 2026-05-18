@@ -30,8 +30,12 @@ export class TooltipController {
     document.body.appendChild(this.el)
   }
 
-  show(event: MouseEvent, point: DataPoint): void {
+  show(event: MouseEvent, point: DataPoint, seriesName?: string): void {
+    const namePart = seriesName
+      ? `<div style="font-size:11px;opacity:0.75;margin-bottom:2px">${seriesName}</div>`
+      : ''
     this.el.innerHTML =
+      namePart +
       `<div style="font-size:11px;opacity:0.75">${this.dateFormat(point.date)}</div>` +
       `<div style="font-weight:600">${this.valueFormat(point.value)}</div>`
     this.el.style.opacity = '1'

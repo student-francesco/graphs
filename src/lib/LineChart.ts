@@ -64,6 +64,7 @@ const DEFAULT_AXIS_ID = 'default'
 
 interface HoverDatum extends DataPoint {
   seriesId: string
+  seriesName: string
   /** Precomputed pixel y — uses the series' own axis scale. */
   _y: number
 }
@@ -1087,7 +1088,7 @@ export class LineChart implements LineChartHandle {
     const allData: HoverDatum[] = []
     for (const s of this.series.values()) {
       const yScale = yScaleFor(s)
-      for (const d of s.data) allData.push({ ...d, seriesId: s.id, _y: yScale(d.value) })
+      for (const d of s.data) allData.push({ ...d, seriesId: s.id, seriesName: s.id, _y: yScale(d.value) })
     }
 
     const zones = zonesG
@@ -1106,7 +1107,7 @@ export class LineChart implements LineChartHandle {
       .attr('cx', d => xScale(d.date))
       .attr('cy', d => d._y)
       .on('mouseenter', (event: MouseEvent, d: HoverDatum) => {
-        this.tooltip?.show(event, d)
+        this.tooltip?.show(event, d, this.series.size > 1 ? d.seriesName : undefined)
       })
       .on('mousemove', (event: MouseEvent) => {
         this.tooltip?.move(event)
