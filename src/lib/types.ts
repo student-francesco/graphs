@@ -97,6 +97,12 @@ export interface ChartSettings {
   /** Visual theme. Drives dot stroke, tooltip palette, and skeleton shimmer. */
   theme: 'light' | 'dark'
 
+  /** Chart title rendered centred above the plot area. null = hidden. */
+  title: string | null
+  /** Label for the x-axis, rendered centred below the axis ticks. null = hidden. */
+  xLabel: string | null
+  /** Label for the default y-axis, rendered rotated along the left margin. null = hidden. */
+  yLabel: string | null
 }
 
 /** Per-series appearance overrides */

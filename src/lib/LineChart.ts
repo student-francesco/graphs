@@ -11,7 +11,7 @@ import type {
   SeriesSettings,
   AxisOptions,
 } from './types.ts'
-import { DEFAULT_SETTINGS, AXIS_WIDTH } from './defaults.ts'
+import { DEFAULT_SETTINGS, AXIS_WIDTH, TITLE_SPACE, X_LABEL_SPACE, Y_LABEL_SPACE } from './defaults.ts'
 import { renderSkeleton, removeSkeleton } from './skeleton.ts'
 import { renderAxes, type AxisLayout } from './axes.ts'
 import { TooltipController } from './tooltip.ts'
@@ -252,6 +252,7 @@ export class LineChart implements LineChartHandle {
       .attr('transform', `translate(${initialMargins.left},${initialMargins.top})`)
 
     renderSkeleton(this.svg, this.width, this.height, initialMargins)
+    this.renderTitleAndLabels()
 
     this.resizeObserver = new ResizeObserver(entries => {
       const entry = entries[0]
@@ -353,6 +354,7 @@ export class LineChart implements LineChartHandle {
     }
 
     if (this.hasData()) this.render('none')
+    else this.renderTitleAndLabels()
   }
 
   setLineColor(color: string): void {
@@ -411,6 +413,7 @@ export class LineChart implements LineChartHandle {
     this.hasSkeleton = true
     this.svg.node()!.dataset.theme = this.settings.theme
     renderSkeleton(this.svg, this.width, this.height, this.effectiveMargins())
+    this.renderTitleAndLabels()
   }
 
   async saveToPdf(filename = 'chart'): Promise<void> {
@@ -685,7 +688,10 @@ export class LineChart implements LineChartHandle {
    * configured base margins. Single-axis charts return the base margins unchanged.
    */
   private effectiveMargins(): ChartMargins {
-    const m = this.settings.margins
+    let m = this.settings.margins
+    if (this.settings.title)  m = { ...m, top:    m.top    + TITLE_SPACE }
+    if (this.settings.xLabel) m = { ...m, bottom: m.bottom + X_LABEL_SPACE }
+    if (this.settings.yLabel) m = { ...m, left:   m.left   + Y_LABEL_SPACE }
     const count = this.axes.size
     if (count <= 1) return m
     if (count === 2) return { ...m, right: m.right + AXIS_WIDTH }
@@ -1002,9 +1008,75 @@ export class LineChart implements LineChartHandle {
     this.prevXScale = xScale
     this.lastRender = Date.now();
 
+    this.renderTitleAndLabels()
+
     // Keep a small number of exit points per series so the blur is not disturbed
     for (const s of this.series.values()) {
       s.pendingExitPoints.splice(0, s.pendingExitPoints.length - 4)
+    }
+  }
+
+  private renderTitleAndLabels(): void {
+    const g = this.axisOverlayG ?? this.innerG
+    const m = this.effectiveMargins()
+
+    // Title — centred above the plot area in the top margin
+    const titleText = this.settings.title
+    const titleSel = g.select<SVGTextElement>('.lc-title')
+    if (titleText) {
+      const el = titleSel.empty()
+        ? g.append<SVGTextElement>('text').attr('class', 'lc-title')
+        : titleSel
+      el
+        .attr('x', this.innerWidth / 2)
+        .attr('y', -(m.top / 2))
+        .attr('dy', '0.35em')
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '14px')
+        .attr('font-family', 'sans-serif')
+        .attr('font-weight', '600')
+        .attr('fill', 'currentColor')
+        .text(titleText)
+    } else {
+      titleSel.remove()
+    }
+
+    // X-axis label — centred below the axis ticks in the bottom margin
+    const xLabelText = this.settings.xLabel
+    const xLabelSel = g.select<SVGTextElement>('.lc-x-label')
+    if (xLabelText) {
+      const el = xLabelSel.empty()
+        ? g.append<SVGTextElement>('text').attr('class', 'lc-x-label')
+        : xLabelSel
+      el
+        .attr('x', this.innerWidth / 2)
+        .attr('y', this.innerHeight + m.bottom - 6)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '12px')
+        .attr('font-family', 'sans-serif')
+        .attr('fill', 'currentColor')
+        .text(xLabelText)
+    } else {
+      xLabelSel.remove()
+    }
+
+    // Y-axis label — rotated 90° along the left margin
+    const yLabelText = this.settings.yLabel
+    const yLabelSel = g.select<SVGTextElement>('.lc-y-label')
+    if (yLabelText) {
+      const el = yLabelSel.empty()
+        ? g.append<SVGTextElement>('text').attr('class', 'lc-y-label')
+        : yLabelSel
+      el
+        .attr('transform', `translate(${-(m.left - 12)},${this.innerHeight / 2}) rotate(-90)`)
+        .attr('text-anchor', 'middle')
+        .attr('dy', '0.35em')
+        .attr('font-size', '12px')
+        .attr('font-family', 'sans-serif')
+        .attr('fill', 'currentColor')
+        .text(yLabelText)
+    } else {
+      yLabelSel.remove()
     }
   }
 

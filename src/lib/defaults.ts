@@ -3,6 +3,13 @@ import type { ChartSettings } from './types.ts'
 /** Horizontal space reserved per additional stacked y-axis (px) */
 export const AXIS_WIDTH = 50
 
+/** Extra top margin reserved when a chart title is set (px) */
+export const TITLE_SPACE = 22
+/** Extra bottom margin reserved when an x-axis label is set (px) */
+export const X_LABEL_SPACE = 18
+/** Extra left margin reserved when a y-axis label is set (px) */
+export const Y_LABEL_SPACE = 18
+
 export const DEFAULT_SETTINGS: ChartSettings = {
   curveType: 'monotoneX',
   lineWeight: 2,
@@ -40,4 +47,8 @@ export const DEFAULT_SETTINGS: ChartSettings = {
   labelFormat: null,
 
   theme: 'light',
+
+  title: null,
+  xLabel: null,
+  yLabel: null,
 }
