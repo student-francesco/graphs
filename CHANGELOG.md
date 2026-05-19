@@ -1,0 +1,76 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.0.5] - 2026-05-19
+
+### Added
+- `AxisSettings` interface — comprehensive per-axis type (renamed from `AxisOptions`; `AxisOptions` kept as a deprecated alias for backward compat)
+- `AxisSettings` adds `scaleType`, `showGrid`, `gridColor`, `gridOpacity` as per-axis overrides; all cascade from `ChartSettings` when `undefined`
+- `SeriesSettings` expanded with `showLabels`, `labelFormat`, `dotBorderColor` as per-series overrides; all cascade from `ChartSettings` when `undefined`
+- `ChartSettings extends SeriesSettings, AxisSettings` in TypeScript — chart-wide fields serve as global defaults for every series and axis
+- `updateSeriesSettings(id, Partial<SeriesSettings>)` — sparse-merge display settings into a specific series and re-render
+- `updateAxisSettings(id, Partial<AxisSettings>)` — sparse-merge settings into a specific axis and re-render
+
+### Changed
+- Dev harness UI restructured: always-visible header for data actions + tabs (Line / Animation / Series / Axes / Labels)
+- Harness Series tab now exposes per-series dot radius, curve type, smoothing, decimation, show labels, dot border color via `updateSeriesSettings`
+- Harness Axes tab now exposes per-axis scale type, grid visibility, grid color, and grid opacity via `updateAxisSettings`
+- `updateSettings({ yScaleType })` now cascades to **all** axes without an explicit `scaleType` override, not just the primary axis
+- `createAxis` accepts `AxisSettings` (was `AxisOptions`) and supports `scaleType`, `showGrid`, `gridColor`, `gridOpacity` at creation time
+
+---
+
+## [0.0.4] - 2026-05-19
+
+### Added
+- Moving average (rolling mean) smoothing with configurable window size (`smoothing` setting)
+- Logarithmic Y-axis scale (`logScale` on `AxisOptions`)
+- LTTB (Largest-Triangle-Three-Buckets) data decimation for performance on dense datasets (`decimation` setting)
+- `dotBorderColor` setting for marker dot stroke color
+- Dense dataset loader in dev harness to exercise the decimation slider
+- Smoothing slider in dev harness
+
+### Changed
+- Per-series display properties (`color`, `lineWeight`, `dotRadius`, `curveType`, `smoothing`, `decimation`) now cascade from chart-wide `ChartSettings`; `undefined` on a series falls back to the chart-wide value at render time
+- `updateSettings()` propagates appearance changes to all series that have no explicit per-series override
+
+### Fixed
+- `dotRadius`, `curveType`, and `lineWeight` were not propagated to series on `updateSettings`
+
+---
+
+## [0.0.3] - 2026-05-18
+
+### Added
+- Multi-series support — multiple data series on a single chart
+- Multi-axis support — independent Y-axes per series
+- Data point labels (`showLabels` / `labelFormat` settings)
+- Dark mode / light mode theming (`theme` setting; applies to skeleton, tooltip, and dots)
+- PDF export via `saveToPdf()` — dependency-free SVG → canvas → PDF pipeline
+- Chart title and axis label settings (`title`, `xAxisLabel`, `yAxisLabel`)
+- Series name shown in tooltip
+
+### Fixed
+- Axis names repositioned to use spare space correctly
+
+---
+
+## [0.0.2] - 2026-04-13
+
+### Added
+- `Graphs.targets` MSBuild targets file to automate dist file placement in consuming projects
+- NuGet packaging support (`graphs.nuspec`, `nuget.exe`, `build:nuget` script)
+- Grid color input in dev harness
+
+---
+
+## [0.0.1] - 2026-04-13
+
+### Added
+- Initial release of the D3-based line chart library as an ES module and UMD bundle
+- Animation system: multiple animation types (`append`, `full`, `none`), `expout` easing auto-selected for high-frequency appends
+- Blur filter at chart start and end edges
+- Scroll-container stability fixes during animated appends
+- X-axis tick and dot placement corrected during animation
+- Sourcemaps disabled for production build
