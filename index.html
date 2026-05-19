@@ -193,6 +193,13 @@
       <button id="btn-y-scale-toggle">Y scale: linear</button>
       <button id="btn-load-exp">Load exponential data</button>
 
+      <span class="section-label">Smoothing</span>
+      <div class="control-group">
+        <label for="smoothing-window">Window</label>
+        <input type="range" id="smoothing-window" min="0" max="50" step="1" value="0" style="width:140px" />
+        <span id="smoothing-display" style="font-size:12px;color:#374151;min-width:28px">off</span>
+      </div>
+
       <span class="section-label">Decimation</span>
       <div class="control-group">
         <label for="decimation-threshold">Threshold</label>

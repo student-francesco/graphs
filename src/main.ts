@@ -538,6 +538,20 @@ document.getElementById('btn-load-exp')!.addEventListener('click', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Smoothing controls
+// ---------------------------------------------------------------------------
+
+const smoothingSlider = document.getElementById('smoothing-window') as HTMLInputElement
+const smoothingDisplay = document.getElementById('smoothing-display')!
+
+smoothingSlider.addEventListener('input', () => {
+  const smoothing = parseInt(smoothingSlider.value, 10)
+  smoothingDisplay.textContent = smoothing === 0 ? 'off' : String(smoothing)
+  chart.updateSettings({ smoothing })
+  setLog(`updateSettings({ smoothing: ${smoothing} })`)
+})
+
+// ---------------------------------------------------------------------------
 // Decimation controls
 // ---------------------------------------------------------------------------
 
