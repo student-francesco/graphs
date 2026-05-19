@@ -9,7 +9,7 @@ import type {
   LineChartHandle,
   AnimationMode,
   SeriesSettings,
-  AxisOptions,
+  AxisSettings,
 } from './types.ts'
 import { DEFAULT_SETTINGS, AXIS_WIDTH, TITLE_SPACE, X_LABEL_SPACE, Y_LABEL_SPACE } from './defaults.ts'
 import { movingAverage, lttb } from './transforms.ts'
@@ -47,13 +47,16 @@ interface SeriesState {
   id: string
   data: DataPoint[]
   pendingExitPoints: DataPoint[]
-  color: string | undefined       // undefined = fall back to settings.lineColor
-  lineWeight: number | undefined  // undefined = fall back to settings.lineWeight
-  dotRadius: number | undefined   // undefined = fall back to settings.dotRadius
-  curveType: CurveType | undefined // undefined = fall back to settings.curveType
+  color: string | undefined            // undefined = fall back to settings.lineColor
+  lineWeight: number | undefined       // undefined = fall back to settings.lineWeight
+  dotRadius: number | undefined        // undefined = fall back to settings.dotRadius
+  curveType: CurveType | undefined     // undefined = fall back to settings.curveType
   axisId: string
-  smoothing: number | undefined
-  decimation: number | undefined
+  smoothing: number | undefined        // undefined = fall back to settings.smoothing
+  decimation: number | undefined       // undefined = fall back to settings.decimation
+  showLabels: boolean | undefined      // undefined = fall back to settings.showLabels
+  labelFormat: string | null | undefined  // undefined = cascade; null = use tooltipValueFormat
+  dotBorderColor: string | null | undefined // undefined = cascade; null = auto from theme
 }
 
 interface AxisState {
@@ -62,7 +65,10 @@ interface AxisState {
   color: string | null
   range: [number, number] | null
   limits: [number, number] | null
-  scaleType: 'linear' | 'log'
+  scaleType: 'linear' | 'log' | undefined  // undefined = cascade to settings.yScaleType
+  showGrid: boolean | undefined            // undefined = cascade to settings.showGrid
+  gridColor: string | undefined            // undefined = cascade to settings.gridColor
+  gridOpacity: number | undefined          // undefined = cascade to settings.gridOpacity
 }
 
 const DEFAULT_AXIS_ID = 'default'
@@ -139,7 +145,10 @@ export class LineChart implements LineChartHandle {
       color: null,
       range: null,
       limits: null,
-      scaleType: this.settings.yScaleType,
+      scaleType: undefined,  // cascades to settings.yScaleType
+      showGrid: undefined,
+      gridColor: undefined,
+      gridOpacity: undefined,
     })
 
     // Initialise the default series — display properties left undefined so they
@@ -155,6 +164,9 @@ export class LineChart implements LineChartHandle {
       axisId: DEFAULT_AXIS_ID,
       smoothing: undefined,
       decimation: undefined,
+      showLabels: undefined,
+      labelFormat: undefined,
+      dotBorderColor: undefined,
     })
 
     const rect = this.container.getBoundingClientRect()
@@ -361,11 +373,6 @@ export class LineChart implements LineChartHandle {
       this.ensureTooltip()
     }
 
-    if (settings.yScaleType !== undefined) {
-      const primary = this.axes.get(DEFAULT_AXIS_ID)
-      if (primary) primary.scaleType = settings.yScaleType
-    }
-
     if (this.hasData()) this.render('none')
     else this.renderTitleAndLabels()
   }
@@ -525,6 +532,9 @@ export class LineChart implements LineChartHandle {
       axisId,
       smoothing: settings?.smoothing,
       decimation: settings?.decimation,
+      showLabels: settings?.showLabels,
+      labelFormat: settings?.labelFormat,
+      dotBorderColor: settings?.dotBorderColor,
     })
   }
 
@@ -628,9 +638,29 @@ export class LineChart implements LineChartHandle {
       .select('.lc-line').attr('stroke-width', weight)
   }
 
+  updateSeriesSettings(id: string, settings: Partial<SeriesSettings>): void {
+    this.assertAlive()
+    const s = this.series.get(id)
+    if (!s) return
+    // Use 'in' (not !== undefined) so explicit null/false/0 values propagate correctly.
+    if ('color' in settings)          s.color = settings.color
+    if ('lineWeight' in settings)     s.lineWeight = settings.lineWeight
+    if ('dotRadius' in settings)      s.dotRadius = settings.dotRadius
+    if ('curveType' in settings)      s.curveType = settings.curveType
+    if ('smoothing' in settings)      s.smoothing = settings.smoothing
+    if ('decimation' in settings)     s.decimation = settings.decimation
+    if ('showLabels' in settings)     s.showLabels = settings.showLabels
+    if ('labelFormat' in settings)    s.labelFormat = settings.labelFormat
+    if ('dotBorderColor' in settings) s.dotBorderColor = settings.dotBorderColor
+    if ('axis' in settings && settings.axis !== undefined) {
+      s.axisId = this.axes.has(settings.axis) ? settings.axis : this.firstAxisId()
+    }
+    if (this.hasData()) this.render('none')
+  }
+
   // --- Multi-axis API ---
 
-  createAxis(name: string, options?: AxisOptions): void {
+  createAxis(name: string, options?: AxisSettings): void {
     this.assertAlive()
     const existing = this.axes.get(name)
     if (existing) {
@@ -640,6 +670,10 @@ export class LineChart implements LineChartHandle {
         if ('color' in options) existing.color = options.color ?? null
         if ('range' in options) existing.range = options.range ?? null
         if ('limits' in options) existing.limits = options.limits ?? null
+        if ('scaleType' in options) existing.scaleType = options.scaleType
+        if ('showGrid' in options) existing.showGrid = options.showGrid
+        if ('gridColor' in options) existing.gridColor = options.gridColor
+        if ('gridOpacity' in options) existing.gridOpacity = options.gridOpacity
       }
     } else {
       this.axes.set(name, {
@@ -648,7 +682,10 @@ export class LineChart implements LineChartHandle {
         color: options?.color ?? null,
         range: options?.range ?? null,
         limits: options?.limits ?? null,
-        scaleType: 'linear',
+        scaleType: options?.scaleType,  // undefined = cascade to settings.yScaleType
+        showGrid: options?.showGrid,
+        gridColor: options?.gridColor,
+        gridOpacity: options?.gridOpacity,
       })
     }
     if (this.hasData()) this.render('none')
@@ -683,6 +720,21 @@ export class LineChart implements LineChartHandle {
     if (this.hasData()) this.render('none')
   }
 
+  updateAxisSettings(id: string, settings: Partial<AxisSettings>): void {
+    this.assertAlive()
+    const axis = this.axes.get(id)
+    if (!axis) return
+    if ('name' in settings && settings.name !== undefined) axis.name = settings.name
+    if ('color' in settings)       axis.color = settings.color ?? null
+    if ('range' in settings)       axis.range = settings.range ?? null
+    if ('limits' in settings)      axis.limits = settings.limits ?? null
+    if ('scaleType' in settings)   axis.scaleType = settings.scaleType
+    if ('showGrid' in settings)    axis.showGrid = settings.showGrid
+    if ('gridColor' in settings)   axis.gridColor = settings.gridColor
+    if ('gridOpacity' in settings) axis.gridOpacity = settings.gridOpacity
+    if (this.hasData()) this.render('none')
+  }
+
   // ---------------------------------------------------------------------------
   // Private
   // ---------------------------------------------------------------------------
@@ -713,36 +765,27 @@ export class LineChart implements LineChartHandle {
     return { ...m, left: m.left + (count - 1) * AXIS_WIDTH }
   }
 
-  /** Resolved per-axis render data. The first axis always sits innermost at offsetX=0. */
+  /** Resolved per-axis render data. The first axis always sits innermost at offsetX=0. All cascade fields are resolved here. */
   private buildAxisLayout(): AxisLayout[] {
-    const list = Array.from(this.axes.values())
-    if (list.length === 1) {
-      return [{
-        id: list[0].id, name: list[0].name, color: list[0].color,
-        position: 'left', offsetX: 0, scaleType: list[0].scaleType,
-      }]
-    }
-    if (list.length === 2) {
-      return [
-        {
-          id: list[0].id, name: list[0].name, color: list[0].color,
-          position: 'left', offsetX: 0, scaleType: list[0].scaleType,
-        },
-        {
-          id: list[1].id, name: list[1].name, color: list[1].color,
-          position: 'right', offsetX: this.innerWidth, scaleType: list[1].scaleType,
-        },
-      ]
-    }
-    // 3+ axes: all left; first innermost at 0, then -AXIS_WIDTH, -2*AXIS_WIDTH, …
-    return list.map((a, i) => ({
+    const resolve = (a: AxisState, position: 'left' | 'right', offsetX: number): AxisLayout => ({
       id: a.id,
       name: a.name,
       color: a.color,
-      position: 'left' as const,
-      offsetX: -i * AXIS_WIDTH,
-      scaleType: a.scaleType,
-    }))
+      position,
+      offsetX,
+      scaleType: a.scaleType ?? this.settings.yScaleType,
+      showGrid: a.showGrid ?? this.settings.showGrid,
+      gridColor: a.gridColor ?? this.settings.gridColor,
+      gridOpacity: a.gridOpacity ?? this.settings.gridOpacity,
+    })
+    const list = Array.from(this.axes.values())
+    if (list.length === 1) return [resolve(list[0], 'left', 0)]
+    if (list.length === 2) return [
+      resolve(list[0], 'left', 0),
+      resolve(list[1], 'right', this.innerWidth),
+    ]
+    // 3+ axes: all left; first innermost at 0, then -AXIS_WIDTH, -2*AXIS_WIDTH, …
+    return list.map((a, i) => resolve(a, 'left', -i * AXIS_WIDTH))
   }
 
   /**
@@ -881,7 +924,7 @@ export class LineChart implements LineChartHandle {
    * Axes with no associated data fall back to [0, 1] so the rail still renders cleanly.
    */
   private buildAxisYScale(axis: AxisState): YScale {
-    const isLog = axis.scaleType === 'log'
+    const isLog = (axis.scaleType ?? this.settings.yScaleType) === 'log'
 
     if (axis.range) {
       if (isLog) {
@@ -1241,7 +1284,10 @@ export class LineChart implements LineChartHandle {
       .data(joinData, d => d.date.getTime())
 
     const dotColor = this.resolveStrokeColor(series)
-    const dotStroke = this.settings.dotBorderColor
+    const resolvedDotBorderColor = series.dotBorderColor !== undefined
+      ? series.dotBorderColor
+      : this.settings.dotBorderColor
+    const dotStroke = resolvedDotBorderColor
       ?? (this.settings.theme === 'dark' ? '#1a1815' : '#fff')
     const enter = dots
       .enter()
@@ -1292,12 +1338,16 @@ export class LineChart implements LineChartHandle {
     duration: number,
     ease: (t: number) => number,
   ): void {
-    if (!this.settings.showLabels) {
+    const showLabels = series.showLabels !== undefined ? series.showLabels : this.settings.showLabels
+    if (!showLabels) {
       g.selectAll('.lc-label').remove()
       return
     }
 
-    const fmt = d3.format(this.settings.labelFormat ?? this.settings.tooltipValueFormat)
+    const resolvedLabelFormat = series.labelFormat !== undefined
+      ? series.labelFormat
+      : this.settings.labelFormat
+    const fmt = d3.format(resolvedLabelFormat ?? this.settings.tooltipValueFormat)
     const color = this.resolveStrokeColor(series)
     const dotRadius = series.dotRadius ?? this.settings.dotRadius
     const offsetY = dotRadius > 0 ? -(dotRadius + 5) : -8

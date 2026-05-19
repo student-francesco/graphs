@@ -1,5 +1,5 @@
 import { createLineChart } from './lib/index.ts'
-import type { RawDataPoint, AxisOptions } from './lib/index.ts'
+import type { RawDataPoint, AxisSettings, SeriesSettings } from './lib/index.ts'
 import type { AnimationMode, CurveType, EasingType } from './lib/types.ts'
 
 // ---------------------------------------------------------------------------
@@ -421,8 +421,8 @@ function syncAxisInputs(): void {
 
 axisSelect.addEventListener('change', syncAxisInputs)
 
-function readAxisInputsAsOptions(): AxisOptions {
-  const opts: AxisOptions = {
+function readAxisInputsAsOptions(): AxisSettings {
+  const opts: AxisSettings = {
     name: axisName.value.trim() || activeAxisId(),
     color: axisColor.value,
   }
@@ -552,6 +552,15 @@ smoothingSlider.addEventListener('input', () => {
 })
 
 // ---------------------------------------------------------------------------
+// PDF export
+// ---------------------------------------------------------------------------
+
+document.getElementById('btn-save-pdf')!.addEventListener('click', () => {
+  chart.saveToPdf('chart')
+  setLog('saveToPdf("chart")')
+})
+
+// ---------------------------------------------------------------------------
 // Decimation controls
 // ---------------------------------------------------------------------------
 
@@ -563,4 +572,87 @@ decimationSlider.addEventListener('input', () => {
   decimationDisplay.textContent = decimation === 0 ? 'off' : String(decimation)
   chart.updateSettings({ decimation })
   setLog(`updateSettings({ decimation: ${decimation} })`)
+})
+
+// ---------------------------------------------------------------------------
+// updateSeriesSettings
+// ---------------------------------------------------------------------------
+
+const seriesDotRadiusInput  = document.getElementById('series-dot-radius')  as HTMLInputElement
+const seriesCurveSelect     = document.getElementById('series-curve')        as HTMLSelectElement
+const seriesSmoothingInput  = document.getElementById('series-smoothing')    as HTMLInputElement
+const seriesDecimationInput = document.getElementById('series-decimation')   as HTMLInputElement
+const seriesShowLabels      = document.getElementById('series-show-labels')  as HTMLInputElement
+const seriesDotBorderInput  = document.getElementById('series-dot-border')   as HTMLInputElement
+
+document.getElementById('btn-update-series-settings')!.addEventListener('click', () => {
+  const id = activeSeriesId()
+  const settings: Partial<SeriesSettings> = {}
+  const dotRadiusVal = seriesDotRadiusInput.value
+  if (dotRadiusVal !== '') settings.dotRadius = parseFloat(dotRadiusVal)
+  const curveVal = seriesCurveSelect.value
+  if (curveVal !== '') settings.curveType = curveVal as CurveType
+  const smoothingVal = seriesSmoothingInput.value
+  if (smoothingVal !== '') settings.smoothing = parseInt(smoothingVal, 10)
+  const decimationVal = seriesDecimationInput.value
+  if (decimationVal !== '') settings.decimation = parseInt(decimationVal, 10)
+  settings.showLabels = seriesShowLabels.checked
+  chart.updateSeriesSettings(id, settings)
+  setLog(`updateSeriesSettings("${id}", ${JSON.stringify(settings)})`)
+})
+
+document.getElementById('btn-series-dot-border-clear')!.addEventListener('click', () => {
+  const id = activeSeriesId()
+  chart.updateSeriesSettings(id, { dotBorderColor: null })
+  setLog(`updateSeriesSettings("${id}", { dotBorderColor: null })`)
+})
+
+seriesDotBorderInput.addEventListener('input', () => {
+  const id = activeSeriesId()
+  chart.updateSeriesSettings(id, { dotBorderColor: seriesDotBorderInput.value })
+  setLog(`updateSeriesSettings("${id}", { dotBorderColor: "${seriesDotBorderInput.value}" })`)
+})
+
+document.getElementById('btn-reset-series-settings')!.addEventListener('click', () => {
+  const id = activeSeriesId()
+  chart.updateSeriesSettings(id, {
+    dotRadius: undefined, curveType: undefined, smoothing: undefined,
+    decimation: undefined, showLabels: undefined, dotBorderColor: undefined,
+  })
+  setLog(`updateSeriesSettings("${id}", { all: undefined }) — reset to chart defaults`)
+})
+
+// ---------------------------------------------------------------------------
+// updateAxisSettings
+// ---------------------------------------------------------------------------
+
+const axisScaleTypeSelect      = document.getElementById('axis-scale-type')         as HTMLSelectElement
+const axisShowGridCb           = document.getElementById('axis-show-grid')           as HTMLInputElement
+const axisGridColorInput       = document.getElementById('axis-grid-color')          as HTMLInputElement
+const axisGridOpacitySlider    = document.getElementById('axis-grid-opacity')        as HTMLInputElement
+const axisGridOpacityDisplay   = document.getElementById('axis-grid-opacity-display')!
+
+axisGridOpacitySlider.addEventListener('input', () => {
+  axisGridOpacityDisplay.textContent = parseFloat(axisGridOpacitySlider.value).toFixed(2)
+})
+
+document.getElementById('btn-update-axis-settings')!.addEventListener('click', () => {
+  const id = activeAxisId()
+  const settings: Partial<AxisSettings> = {
+    showGrid: axisShowGridCb.checked,
+    gridColor: axisGridColorInput.value,
+    gridOpacity: parseFloat(axisGridOpacitySlider.value),
+  }
+  const scaleVal = axisScaleTypeSelect.value
+  if (scaleVal !== '') settings.scaleType = scaleVal as 'linear' | 'log'
+  chart.updateAxisSettings(id, settings)
+  setLog(`updateAxisSettings("${id}", ${JSON.stringify(settings)})`)
+})
+
+document.getElementById('btn-reset-axis-settings')!.addEventListener('click', () => {
+  const id = activeAxisId()
+  chart.updateAxisSettings(id, {
+    scaleType: undefined, showGrid: undefined, gridColor: undefined, gridOpacity: undefined,
+  })
+  setLog(`updateAxisSettings("${id}", { all: undefined }) — reset to chart defaults`)
 })

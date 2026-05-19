@@ -46,83 +46,9 @@ export interface ChartMargins {
   left: number
 }
 
-export interface ChartSettings {
-  // Line appearance
-  curveType: CurveType
-  lineWeight: number
-  lineColor: string
-  dotRadius: number           // 0 = no dots
-
-  // Grid
-  showGrid: boolean
-  gridColor: string
-  gridOpacity: number         // 0–1
-
-  // Tooltip
-  showTooltip: boolean
-  tooltipDateFormat: string   // d3-time-format specifier, e.g. '%b %d, %Y'
-  tooltipValueFormat: string  // d3-format specifier, e.g. '.2f'
-
-  // Animation
-  animationDuration: number   // ms; 0 = no animation
-  easingType: EasingType
-
-  // Layout
-  margins: ChartMargins
-
-  // Axis formatters (null = d3 defaults)
-  xAxisFormatter: ((value: Date, index: number) => string) | null
-  yAxisFormatter: ((value: number, index: number) => string) | null
-
-  // Accessibility
-  ariaLabel: string
-
-  // updateData delta thresholds
-  minOverlapForTransition: number  // minimum absolute overlap count (default 2)
-  overlapThreshold: number         // minimum overlap ratio 0–1 (default 0.3)
-
-  // Per-operation animation mode
-  setDataAnimation: AnimationMode      // default 'drawOn'
-  updateDataAnimation: AnimationMode   // default 'morph'
-  appendAnimation: AnimationMode       // default 'none'; appendDataPoints inherits this
-
-  // Rolling window — null means unlimited
-  maxDataPoints: number | null
-
-  /** Show value labels next to each data point */
-  showLabels: boolean
-  /** d3-format specifier for label values; null falls back to tooltipValueFormat */
-  labelFormat: string | null
-
-  /** Visual theme. Drives dot stroke, tooltip palette, and skeleton shimmer. */
-  theme: 'light' | 'dark'
-
-  /**
-   * Border colour of marker dots. Set this to match the chart's background colour
-   * so the stroke blends in and "hides" the line beneath each dot.
-   * null = auto-derived from `theme` (#fff for light, #1a1815 for dark).
-   */
-  dotBorderColor: string | null
-
-  /** Chart title rendered centred above the plot area. null = hidden. */
-  title: string | null
-  /** Label for the x-axis, rendered centred below the axis ticks. null = hidden. */
-  xLabel: string | null
-  /** Label for the default y-axis, rendered rotated along the left margin. null = hidden. */
-  yLabel: string | null
-
-  /** Moving average window size; 0 = disabled. Applied view-side — raw data is unchanged. */
-  smoothing: number
-
-  /** LTTB decimation target point count per series; 0 = disabled. Applied view-side — raw data is unchanged. */
-  decimation: number
-
-  /** Scale type for the primary (default) y-axis. Per-axis overrides take precedence. */
-  yScaleType: 'linear' | 'log'
-}
-
-/** Per-series appearance overrides */
+/** Per-series appearance overrides. Undefined fields cascade to the chart-wide ChartSettings defaults. */
 export interface SeriesSettings {
+  /** Per-series line/dot colour override. Undefined falls back to the axis colour or ChartSettings.lineColor. */
   color?: string
   lineWeight?: number
   dotRadius?: number
@@ -133,10 +59,16 @@ export interface SeriesSettings {
   smoothing?: number
   /** Per-series LTTB decimation target override; undefined falls back to ChartSettings.decimation. */
   decimation?: number
+  /** Show value labels next to each data point; undefined falls back to ChartSettings.showLabels. */
+  showLabels?: boolean
+  /** d3-format specifier for label values; null uses tooltipValueFormat; undefined cascades to ChartSettings.labelFormat. */
+  labelFormat?: string | null
+  /** Border colour of marker dots; null = auto from theme; undefined cascades to ChartSettings.dotBorderColor. */
+  dotBorderColor?: string | null
 }
 
-/** Per y-axis configuration */
-export interface AxisOptions {
+/** Per y-axis configuration. Undefined fields cascade to the chart-wide ChartSettings defaults. */
+export interface AxisSettings {
   /** Label shown above the rail when the chart has 2+ axes. Defaults to the axis id. */
   name?: string
   /** When set, paints the axis chrome AND overrides the line/dot colour of every series associated with this axis. */
@@ -145,8 +77,77 @@ export interface AxisOptions {
   range?: [number, number]
   /** Soft bounds — the auto-computed extent is clamped so the axis cannot extend below limits[0] nor above limits[1]. */
   limits?: [number, number]
-  /** Scale type for this axis. Defaults to 'linear'. */
+  /** Scale type for this axis; undefined cascades to ChartSettings.yScaleType. */
   scaleType?: 'linear' | 'log'
+  /** Show grid lines for this axis; undefined cascades to ChartSettings.showGrid. */
+  showGrid?: boolean
+  /** Grid line colour for this axis; undefined cascades to ChartSettings.gridColor. */
+  gridColor?: string
+  /** Grid line opacity for this axis; undefined cascades to ChartSettings.gridOpacity. */
+  gridOpacity?: number
+}
+
+/** @deprecated Use AxisSettings. */
+export type AxisOptions = AxisSettings
+
+/**
+ * Chart-wide settings. Extends SeriesSettings and AxisSettings so that every per-series and
+ * per-axis property has a global default here. Per-series/axis overrides set via
+ * updateSeriesSettings / updateAxisSettings take precedence over these values at render time.
+ *
+ * Note: `color` is inherited from both SeriesSettings and AxisSettings as an optional field.
+ * At chart scope it is inert — use `lineColor` as the authoritative chart-wide line colour default.
+ */
+export interface ChartSettings extends SeriesSettings, AxisSettings {
+  // ── Re-declared as required from SeriesSettings (chart-wide defaults) ──────
+  curveType: CurveType
+  lineWeight: number
+  dotRadius: number
+  smoothing: number
+  decimation: number
+  showLabels: boolean
+  labelFormat: string | null
+  dotBorderColor: string | null
+
+  // ── Re-declared as required from AxisSettings (chart-wide defaults) ────────
+  showGrid: boolean
+  gridColor: string
+  gridOpacity: number
+
+  // ── Chart-scope defaults not inherited from the bases ─────────────────────
+  /** Chart-wide default series colour. SeriesSettings.color is the per-series override. */
+  lineColor: string
+  /** Chart-wide y-axis scale type default. AxisSettings.scaleType is the per-axis override. */
+  yScaleType: 'linear' | 'log'
+
+  // ── Tooltip ────────────────────────────────────────────────────────────────
+  showTooltip: boolean
+  tooltipDateFormat: string
+  tooltipValueFormat: string
+
+  // ── Animation ──────────────────────────────────────────────────────────────
+  animationDuration: number
+  easingType: EasingType
+  setDataAnimation: AnimationMode
+  updateDataAnimation: AnimationMode
+  appendAnimation: AnimationMode
+
+  // ── Layout ─────────────────────────────────────────────────────────────────
+  margins: ChartMargins
+  xAxisFormatter: ((value: Date, index: number) => string) | null
+  yAxisFormatter: ((value: number, index: number) => string) | null
+  ariaLabel: string
+
+  // ── updateData delta thresholds ────────────────────────────────────────────
+  minOverlapForTransition: number
+  overlapThreshold: number
+  maxDataPoints: number | null
+
+  // ── Theme + labels ─────────────────────────────────────────────────────────
+  theme: 'light' | 'dark'
+  title: string | null
+  xLabel: string | null
+  yLabel: string | null
 }
 
 /** The object Blazor holds as IJSObjectReference */
@@ -161,7 +162,7 @@ export interface LineChartHandle {
    * otherwise performs a full replace (equivalent to setData).
    */
   updateData(data: RawDataPoint[]): void
-  /** Live update chart settings and re-render */
+  /** Live update chart settings and re-render. Changes cascade to all series and axes without per-object overrides. */
   updateSettings(settings: Partial<ChartSettings>): void
   /** Fast path — directly mutates SVG stroke color without full re-render */
   setLineColor(color: string): void
@@ -195,10 +196,12 @@ export interface LineChartHandle {
   setSeriesColor(id: string, color: string): void
   /** Fast path — mutates stroke width for a named series */
   setSeriesWeight(id: string, weight: number): void
+  /** Sparse-merge settings into a specific series and re-render. Use undefined values to reset a field to the chart-wide default. */
+  updateSeriesSettings(id: string, settings: Partial<SeriesSettings>): void
 
   // --- Multi-axis API ---
   /** Create or update a named y-axis. Sparse — only provided fields are written. */
-  createAxis(name: string, options?: AxisOptions): void
+  createAxis(name: string, options?: AxisSettings): void
   /**
    * Remove a y-axis. Series previously bound to it migrate to the first remaining axis.
    * No-op when removing the last remaining axis — the chart always keeps at least one.
@@ -206,4 +209,6 @@ export interface LineChartHandle {
   removeAxis(name: string): void
   /** Bind a series to an axis. Auto-creates the series if absent. Unknown axis ids are ignored with a warning. */
   associateSeries(seriesName: string, axisName: string): void
+  /** Sparse-merge settings into a specific axis and re-render. Use undefined values to reset a field to the chart-wide default. */
+  updateAxisSettings(id: string, settings: Partial<AxisSettings>): void
 }

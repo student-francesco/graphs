@@ -3,7 +3,7 @@ import type { AnimationMode, ChartSettings } from './types.ts'
 
 export type YScale = d3.ScaleLinear<number, number> | d3.ScaleLogarithmic<number, number>
 
-/** Resolved per-axis render data, computed once per render() in LineChart. */
+/** Resolved per-axis render data, computed once per render() in LineChart. All fields are fully resolved (cascade applied). */
 export interface AxisLayout {
   id: string
   name: string
@@ -12,6 +12,9 @@ export interface AxisLayout {
   /** x offset relative to innerG origin (0 = chart's left edge, innerWidth = right edge) */
   offsetX: number
   scaleType: 'linear' | 'log'
+  showGrid: boolean
+  gridColor: string
+  gridOpacity: number
 }
 
 export interface AxesConfig {
@@ -51,7 +54,8 @@ export function renderAxes(config: AxesConfig): void {
   // ---- Grid ----
   // Grid lives here because its lines must fall exactly on axis tick positions — using the same scale instances guarantees that.
   // The grid is rendered through repurposed D3 axis elements without scale texts.
-  if (settings.showGrid) {
+  const primaryAxis = layout[0]!
+  if (primaryAxis.showGrid) {
     const yGrid = scrollG.select<SVGGElement>('.lc-grid-y')
     const yGridEl = yGrid.empty()
       ? scrollG.insert('g', ':first-child').attr('class', 'lc-grid-y')
@@ -62,8 +66,8 @@ export function renderAxes(config: AxesConfig): void {
       sel.call(yGridAxis)
       sel.select('.domain').remove()
       sel.selectAll('.tick line')
-        .attr('stroke', settings.gridColor)
-        .attr('stroke-opacity', settings.gridOpacity)
+        .attr('stroke', primaryAxis.gridColor)
+        .attr('stroke-opacity', primaryAxis.gridOpacity)
         .attr('stroke-dasharray', '3,3')
     }
 
@@ -84,8 +88,8 @@ export function renderAxes(config: AxesConfig): void {
       sel.call(xGridAxis)
       sel.select('.domain').remove()
       sel.selectAll('.tick line')
-        .attr('stroke', settings.gridColor)
-        .attr('stroke-opacity', settings.gridOpacity)
+        .attr('stroke', primaryAxis.gridColor)
+        .attr('stroke-opacity', primaryAxis.gridOpacity)
         .attr('stroke-dasharray', '3,3')
     }
 
