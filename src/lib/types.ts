@@ -148,6 +148,14 @@ export interface ChartSettings extends SeriesSettings, AxisSettings {
   title: string | null
   xLabel: string | null
   yLabel: string | null
+
+  // ── Pan / zoom ─────────────────────────────────────────────────────────────
+  /** Master switch for pan + zoom interactions (wheel zoom, drag pan, pinch zoom, dblclick zoom). */
+  zoomEnabled: boolean
+  /** Which axes the user can pan / zoom: 'x' (time only — default), 'y', or 'xy' (both). */
+  zoomMode: 'x' | 'y' | 'xy'
+  /** Minimum / maximum scale factor for zoom; 1 means cannot zoom out below the natural extent. */
+  zoomScaleExtent: [number, number]
 }
 
 /** The object Blazor holds as IJSObjectReference */
@@ -176,6 +184,8 @@ export interface LineChartHandle {
   clearData(): void
   /** Export the current chart as a PDF and trigger a browser download */
   saveToPdf(filename?: string): Promise<void>
+  /** Reset any pan / zoom transform back to identity (animated). No-op when already at identity. */
+  resetZoom(): void
   /** Remove the chart from the DOM and clean up all resources */
   destroy(): void
 

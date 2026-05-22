@@ -132,6 +132,29 @@ export class LineChart implements LineChartHandle {
 
   private lastRender: number = Date.now()
 
+  /**
+   * D3 zoom behaviour attached to the root svg. Wheel / drag / pinch events
+   * update `zoomTransform` and trigger a non-animated re-render with rescaled
+   * scales — no Blazor interop is involved. The transform is uniform across X
+   * and Y (d3.zoom limitation); for independent per-axis zoom use the modifier
+   * brush, which writes explicit domain overrides below.
+   */
+  private zoom!: d3.ZoomBehavior<SVGSVGElement, unknown>
+  private zoomTransform: d3.ZoomTransform = d3.zoomIdentity
+
+  /**
+   * Domain overrides set by the modifier-key brush. When set, they take the
+   * place of the auto-computed extent in render(); the d3.zoom transform then
+   * stacks on top via rescaleX/rescaleY. resetZoom() clears both layers.
+   */
+  private xDomainOverride: [Date, Date] | null = null
+  private yDomainOverrides: Map<string, [number, number]> = new Map()
+
+  /** Live brush state — null when no modifier-drag is in progress. */
+  private brushRect: d3.Selection<SVGRectElement, unknown, null, undefined> | null = null
+  private brushStart: { x: number; y: number } | null = null
+  private brushOrientation: 'h' | 'v' | 'rect' | null = null
+
   constructor(divId: string, settings?: Partial<ChartSettings>) {
     const el = document.getElementById(divId)
     if (el === null) throw new Error(`LineChart: no element with id "${divId}"`)
@@ -274,6 +297,65 @@ export class LineChart implements LineChartHandle {
     renderSkeleton(this.svg, this.width, this.height, initialMargins)
     this.renderTitleAndLabels()
 
+    // ---- Pan / zoom -------------------------------------------------------
+    // d3.zoom is attached to the root svg so wheel events anywhere over the
+    // chart are captured (the overlay svg is pointer-events:none). The default
+    // filter allows wheel + left-mouse drag + touch + dblclick; we additionally
+    // gate on settings.zoomEnabled so the chart can be put back into a static
+    // mode at runtime without rebinding listeners.
+    this.zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent(this.settings.zoomScaleExtent)
+      .filter((event: Event) => {
+        if (!this.settings.zoomEnabled) return false
+        // Mirror d3.zoom's default filter, but ALSO bail on ctrl/cmd for
+        // non-wheel events so the modifier-drag brush below gets exclusive
+        // ownership of those gestures.
+        const e = event as MouseEvent & { button?: number }
+        const modifier = e.ctrlKey || e.metaKey
+        return (!modifier || event.type === 'wheel') && !e.button
+      })
+      .on('zoom', (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
+        this.zoomTransform = event.transform
+        if (this.hasData()) this.render('none')
+      })
+    this.svg.call(this.zoom)
+    // Drop d3.zoom's default dblclick handler — we repurpose dblclick as a
+    // one-shot "reset to natural extent" gesture (handled below).
+    this.svg.on('dblclick.zoom', null)
+    this.svg.on('dblclick.lc-reset', (event: MouseEvent) => {
+      if (!this.settings.zoomEnabled) return
+      if (!this.isZoomed()) return
+      event.preventDefault()
+      this.resetZoom()
+    })
+    // Disable the browser's default touch behaviours (page scroll / pinch zoom)
+    // inside the chart so single-finger pan + two-finger pinch reach d3.zoom.
+    this.svg.style('touch-action', 'none')
+
+    // ---- Modifier brush (ctrl on Win/Linux, cmd on Mac) -------------------
+    // d3.brush doesn't fit here because its orientation is fixed at creation;
+    // we want a single gesture that dynamically resolves to horizontal /
+    // vertical / rectangular based on the user's drag direction. We hand-roll
+    // the gesture and reuse d3 helpers (pointer, scale.invert) for the math.
+    this.svg.on('mousedown.lc-brush', (event: MouseEvent) => {
+      if (!this.settings.zoomEnabled) return
+      if (!(event.ctrlKey || event.metaKey)) return
+      if (!this.hasData()) return
+      const target = this.innerG.node()
+      if (target === null) return
+      const [x, y] = d3.pointer(event, target)
+      // Ignore mousedowns outside the inner chart area (e.g. on a y-axis rail).
+      if (x < 0 || x > this.innerWidth || y < 0 || y > this.innerHeight) return
+      event.preventDefault()
+      event.stopPropagation()
+      this.brushStart = { x, y }
+      this.brushOrientation = null
+      // Listen on window so the brush keeps tracking even when the cursor
+      // leaves the chart bounds during the drag.
+      window.addEventListener('mousemove', this.onBrushMove, true)
+      window.addEventListener('mouseup', this.onBrushUp, true)
+    })
+
     this.resizeObserver = new ResizeObserver(entries => {
       const entry = entries[0]
       if (entry === undefined) return
@@ -359,6 +441,11 @@ export class LineChart implements LineChartHandle {
     const prevTheme = this.settings.theme
     this.settings = { ...this.settings, ...settings }
     this.svg.node()!.dataset.theme = this.settings.theme
+    // Keep the zoom behaviour's scaleExtent in sync; the filter reads
+    // settings.zoomEnabled on every event so no rebinding is needed there.
+    if ('zoomScaleExtent' in settings) {
+      this.zoom.scaleExtent(this.settings.zoomScaleExtent)
+    }
 
     if (!hadTooltip && this.settings.showTooltip && this.hasData()) {
       this.ensureTooltip()
@@ -415,8 +502,43 @@ export class LineChart implements LineChartHandle {
     if (s.data.length > 0) this.render(this.settings.appendAnimation)
   }
 
+  resetZoom(): void {
+    this.assertAlive()
+    if (!this.isZoomed()) return
+    const hadTransform = this.zoomTransform !== d3.zoomIdentity
+    // Drop the brush-set overrides immediately; the d3.zoom transform is
+    // animated back to identity below (or snapped when duration is 0).
+    this.xDomainOverride = null
+    this.yDomainOverrides.clear()
+    const duration = this.settings.animationDuration
+    if (hadTransform && duration > 0) {
+      this.svg.transition()
+        .duration(duration)
+        .ease(EASING_MAP[this.settings.easingType])
+        .call(this.zoom.transform, d3.zoomIdentity)
+    } else if (hadTransform) {
+      this.svg.call(this.zoom.transform, d3.zoomIdentity)
+    } else if (this.hasData()) {
+      // No transform to animate — just re-render with overrides cleared.
+      this.render('none')
+    }
+  }
+
+  /** True when either layer (brush overrides or d3.zoom transform) is non-identity. */
+  private isZoomed(): boolean {
+    return this.zoomTransform !== d3.zoomIdentity
+      || this.xDomainOverride !== null
+      || this.yDomainOverrides.size > 0
+  }
+
   clearData(): void {
     this.assertAlive()
+    // Returning to skeleton state — drop any active pan / zoom layers.
+    this.xDomainOverride = null
+    this.yDomainOverrides.clear()
+    if (this.zoomTransform !== d3.zoomIdentity) {
+      this.svg.call(this.zoom.transform, d3.zoomIdentity)
+    }
     const ds = this.defaultSeries()
     this.series.clear()
     this.series.set('default', {
@@ -505,6 +627,10 @@ export class LineChart implements LineChartHandle {
     this.destroyed = true
     this.resizeObserver?.disconnect()
     this.tooltip?.destroy()
+    // Brush listeners are added to window during an active drag — drop them
+    // here in case destroy() races a mid-gesture release.
+    window.removeEventListener('mousemove', this.onBrushMove, true)
+    window.removeEventListener('mouseup', this.onBrushUp, true)
     this.svg.remove()
     this.axisOverlaySvg?.remove()
     this.fadeBlurLeft.remove()
@@ -972,7 +1098,40 @@ export class LineChart implements LineChartHandle {
     if (!this.hasData()) return
 
     const duration = mode !== 'none' ? this.settings.animationDuration : 0
-    const { xScale, yScales } = this.buildScales()
+    const { xScale: xBase0, yScales: yBase0 } = this.buildScales()
+
+    // Layer 1: brush-supplied domain overrides replace the auto-computed extent.
+    // Layer 2: the d3.zoom transform (wheel/drag/pinch) stacks on top via
+    // rescaleX/rescaleY. resetZoom() clears both layers atomically.
+    const xBase = this.xDomainOverride !== null
+      ? (xBase0.copy().domain(this.xDomainOverride) as d3.ScaleTime<number, number>)
+      : xBase0
+    const yBase = new Map<string, YScale>()
+    for (const [id, ys] of yBase0) {
+      const ovr = this.yDomainOverrides.get(id)
+      yBase.set(id, ovr !== undefined ? (ys.copy().domain(ovr) as YScale) : ys)
+    }
+
+    // rescaleX / rescaleY return type-preserving copies (scaleTime → scaleTime,
+    // scaleLog → scaleLog) so downstream rendering is unchanged. At identity
+    // the rescaled scale is equivalent to the base scale.
+    //
+    // Once the user has made a brush selection (either dimension), unlock
+    // panning + zooming on BOTH axes so they can drag the focused view around
+    // freely — including vertically after a purely horizontal brush, and
+    // horizontally after a purely vertical brush. The configured zoomMode
+    // remains the resting default while the chart is at its natural extent.
+    const hasOverride = this.xDomainOverride !== null || this.yDomainOverrides.size > 0
+    const zoomsX = hasOverride
+      || this.settings.zoomMode === 'x' || this.settings.zoomMode === 'xy'
+    const zoomsY = hasOverride
+      || this.settings.zoomMode === 'y' || this.settings.zoomMode === 'xy'
+    const xScale = zoomsX ? this.zoomTransform.rescaleX(xBase) : xBase
+    const yScales = new Map<string, YScale>()
+    for (const [id, ys] of yBase) {
+      yScales.set(id, zoomsY ? (this.zoomTransform.rescaleY(ys) as YScale) : ys)
+    }
+
     const layout = this.buildAxisLayout()
     const primaryYScale = yScales.get(layout[0].id)!
 
@@ -1439,6 +1598,148 @@ export class LineChart implements LineChartHandle {
       })
 
     zones.exit().remove()
+  }
+
+  // ---------------------------------------------------------------------------
+  // Modifier brush (ctrl / cmd + drag)
+  // ---------------------------------------------------------------------------
+
+  /** Pick orientation from the drag delta. Tolerances let small wobble in the
+   *  non-dominant axis still count as a pure horizontal or vertical gesture. */
+  private decideBrushOrientation(dx: number, dy: number): 'h' | 'v' | 'rect' {
+    const TOL = 24
+    if (dy <= TOL && dx > dy) return 'h'
+    if (dx <= TOL && dy > dx) return 'v'
+    return 'rect'
+  }
+
+  private updateBrushRect(
+    p1: { x: number; y: number },
+    p2: { x: number; y: number },
+    orient: 'h' | 'v' | 'rect',
+  ): void {
+    // Painted in axisOverlayG so it sits above the main svg + blur layers and
+    // is never clipped by lc-chart-area. The overlay svg is pointer-events:none
+    // so the brush rect is purely visual — mouse events keep flowing to the
+    // main svg underneath.
+    const parent = this.axisOverlayG ?? this.innerG
+    if (this.brushRect === null) {
+      this.brushRect = parent
+        .append('rect')
+        .attr('class', 'lc-brush')
+        .attr('fill', 'rgba(99, 102, 241, 0.18)')
+        .attr('stroke', 'rgba(99, 102, 241, 0.85)')
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4 2')
+        .attr('pointer-events', 'none')
+    }
+    let x: number, y: number, w: number, h: number
+    if (orient === 'h') {
+      x = Math.min(p1.x, p2.x); w = Math.abs(p2.x - p1.x)
+      y = 0; h = this.innerHeight
+    } else if (orient === 'v') {
+      x = 0; w = this.innerWidth
+      y = Math.min(p1.y, p2.y); h = Math.abs(p2.y - p1.y)
+    } else {
+      x = Math.min(p1.x, p2.x); y = Math.min(p1.y, p2.y)
+      w = Math.abs(p2.x - p1.x); h = Math.abs(p2.y - p1.y)
+    }
+    this.brushRect.attr('x', x).attr('y', y).attr('width', w).attr('height', h)
+  }
+
+  private onBrushMove = (event: MouseEvent): void => {
+    if (this.brushStart === null) return
+    const target = this.innerG.node()
+    if (target === null) return
+    const [rawX, rawY] = d3.pointer(event, target)
+    const x = Math.max(0, Math.min(this.innerWidth, rawX))
+    const y = Math.max(0, Math.min(this.innerHeight, rawY))
+    const dx = Math.abs(x - this.brushStart.x)
+    const dy = Math.abs(y - this.brushStart.y)
+    // Sub-pixel wiggle — don't draw anything yet so a stray click+release leaves
+    // no ghost rect behind.
+    if (dx < 3 && dy < 3) return
+    const orient = this.decideBrushOrientation(dx, dy)
+    this.brushOrientation = orient
+    this.updateBrushRect(this.brushStart, { x, y }, orient)
+  }
+
+  private onBrushUp = (_event: MouseEvent): void => {
+    window.removeEventListener('mousemove', this.onBrushMove, true)
+    window.removeEventListener('mouseup', this.onBrushUp, true)
+    const orient = this.brushOrientation
+    const rect = this.brushRect
+    this.brushStart = null
+    this.brushOrientation = null
+    this.brushRect = null
+    if (orient !== null && rect !== null) {
+      const x = parseFloat(rect.attr('x') || '0')
+      const y = parseFloat(rect.attr('y') || '0')
+      const w = parseFloat(rect.attr('width') || '0')
+      const h = parseFloat(rect.attr('height') || '0')
+      rect.remove()
+      // Need a meaningful selection in the active dimension(s); tiny strokes
+      // (e.g. accidental ctrl-click + 5px drag) are discarded.
+      const meaningful =
+        (orient === 'h' && w > 4) ||
+        (orient === 'v' && h > 4) ||
+        (orient === 'rect' && w > 4 && h > 4)
+      if (meaningful) this.applyBrushZoom(x, y, w, h, orient)
+    } else if (rect !== null) {
+      rect.remove()
+    }
+  }
+
+  /** Convert the pixel selection into domain ranges and write them into the
+   *  override layer. Uses d3-scale invert() — the "D3 helpers" the user asked
+   *  about — to map screen pixels back to data coordinates through the
+   *  currently-visible scales. */
+  private applyBrushZoom(
+    x: number, y: number, w: number, h: number,
+    orient: 'h' | 'v' | 'rect',
+  ): void {
+    const { xScale: xBase0, yScales: yBase0 } = this.buildScales()
+    const xBase = this.xDomainOverride !== null
+      ? (xBase0.copy().domain(this.xDomainOverride) as d3.ScaleTime<number, number>)
+      : xBase0
+    // Mirror the render-time unlock rule so the pixel→domain inversion uses
+    // the same effective scales the user is looking at.
+    const hasOverride = this.xDomainOverride !== null || this.yDomainOverrides.size > 0
+    const zoomsX = hasOverride
+      || this.settings.zoomMode === 'x' || this.settings.zoomMode === 'xy'
+    const zoomsY = hasOverride
+      || this.settings.zoomMode === 'y' || this.settings.zoomMode === 'xy'
+    const xEff = zoomsX ? this.zoomTransform.rescaleX(xBase) : xBase
+
+    if (orient === 'h' || orient === 'rect') {
+      const d0 = xEff.invert(x)
+      const d1 = xEff.invert(x + w)
+      this.xDomainOverride = d0 <= d1 ? [d0, d1] : [d1, d0]
+    }
+    if (orient === 'v' || orient === 'rect') {
+      for (const [id, ys] of yBase0) {
+        const ovr = this.yDomainOverrides.get(id)
+        const yWithOvr = ovr !== undefined
+          ? (ys.copy().domain(ovr) as YScale)
+          : ys
+        const yEff = zoomsY ? (this.zoomTransform.rescaleY(yWithOvr) as YScale) : yWithOvr
+        // y-range runs [innerHeight, 0] (SVG y grows down, data values up).
+        // Smaller pixel y → larger value → vTop is the high end.
+        const vTop = yEff.invert(y) as number
+        const vBot = yEff.invert(y + h) as number
+        const lo = Math.min(vTop, vBot)
+        const hi = Math.max(vTop, vBot)
+        this.yDomainOverrides.set(id, [lo, hi])
+      }
+    }
+    // The new domain folds in the d3.zoom transform that was applied beforehand —
+    // snap the transform back to identity so subsequent wheels start from the
+    // brushed view. This dispatches a zoom event whose handler re-renders.
+    if (this.zoomTransform !== d3.zoomIdentity) {
+      this.svg.call(this.zoom.transform, d3.zoomIdentity)
+    } else {
+      this.render('none')
+    }
   }
 
   private assertAlive(): void {

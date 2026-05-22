@@ -57,4 +57,8 @@ export const DEFAULT_SETTINGS: ChartSettings = {
   decimation: 0,
 
   yScaleType: 'linear',
+
+  zoomEnabled: true,
+  zoomMode: 'x',
+  zoomScaleExtent: [1, 100],
 }
