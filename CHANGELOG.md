@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.6] - 2026-05-22
+
+### Added
+- Pan + zoom interactions: mouse wheel zoom, drag pan, pinch zoom, double-click to reset (configurable via `zoomEnabled`, `zoomMode`, `zoomScaleExtent`)
+- `zoomMode` setting — choose which axes the user can pan / zoom: `'x'` (default), `'y'`, or `'xy'`
+- `zoomScaleExtent` setting — minimum / maximum scale factor for zoom (default `[1, 100]`)
+- Modifier-key brush selection: Ctrl/Cmd + drag dynamically resolves to a horizontal, vertical, or rectangular brush based on gesture direction, and zooms into the selected region using per-axis domain overrides
+- `resetZoom()` API — returns the chart to its natural extent (animated, no-op when already at identity)
+
+### Changed
+- Once any brush is active, both axes unlock for further panning regardless of `zoomMode`
+
+---
+
 ## [0.0.5] - 2026-05-19
 
 ### Added
