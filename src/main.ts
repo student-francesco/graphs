@@ -552,6 +552,28 @@ smoothingSlider.addEventListener('input', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Pan / zoom — all handled by d3 inside the library; harness only resets it.
+// ---------------------------------------------------------------------------
+
+const zoomModeSelect = document.getElementById('zoom-mode') as HTMLSelectElement
+zoomModeSelect.addEventListener('change', () => {
+  const raw = zoomModeSelect.value
+  if (raw === 'off') {
+    chart.updateSettings({ zoomEnabled: false })
+    setLog('updateSettings({ zoomEnabled: false })')
+  } else {
+    const zoomMode = raw as 'x' | 'y' | 'xy'
+    chart.updateSettings({ zoomEnabled: true, zoomMode })
+    setLog(`updateSettings({ zoomEnabled: true, zoomMode: "${zoomMode}" })`)
+  }
+})
+
+document.getElementById('btn-reset-zoom')!.addEventListener('click', () => {
+  chart.resetZoom()
+  setLog('resetZoom()')
+})
+
+// ---------------------------------------------------------------------------
 // PDF export
 // ---------------------------------------------------------------------------
 

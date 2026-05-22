@@ -137,6 +137,18 @@
           <label for="max-data-points">Max points</label>
           <input type="number" id="max-data-points" value="60" min="1" step="1" />
         </div>
+        <div class="vr"></div>
+        <!-- pan / zoom (handled entirely by d3 inside the library) -->
+        <div class="control-group">
+          <label for="zoom-mode">Zoom</label>
+          <select id="zoom-mode">
+            <option value="off">off</option>
+            <option value="x" selected>x</option>
+            <option value="y">y</option>
+            <option value="xy">xy</option>
+          </select>
+        </div>
+        <button id="btn-reset-zoom">Reset zoom</button>
       </div>
     </div>
 
