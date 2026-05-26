@@ -12,6 +12,12 @@ export type {
   HorizontalAnnotationSettings,
   VerticalAnnotationSettings,
   LineChartHandle,
+  ChartSnapshot,
+  SerializableChartSettings,
+  AxisSnapshot,
+  SeriesSnapshot,
+  AnnotationSnapshot,
+  ZoomSnapshot,
 } from './types.ts'
 export { DEFAULT_SETTINGS } from './defaults.ts'
 export { LineChart } from './LineChart.ts'
@@ -64,5 +70,7 @@ export function createLineChart(
     setVerticalLine: chart.setVerticalLine.bind(chart),
     removeAnnotation: chart.removeAnnotation.bind(chart),
     clearAnnotations: chart.clearAnnotations.bind(chart),
+    getSnapshot: chart.getSnapshot.bind(chart),
+    restoreSnapshot: chart.restoreSnapshot.bind(chart),
   }
 }

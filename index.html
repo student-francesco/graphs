@@ -161,6 +161,7 @@
         <button class="tab-btn" data-tab="axes">Axes</button>
         <button class="tab-btn" data-tab="labels">Labels</button>
         <button class="tab-btn" data-tab="annotations">Annotations</button>
+        <button class="tab-btn" data-tab="snapshot">Snapshot</button>
       </div>
 
       <!-- Line tab: curve, smoothing, decimation, scale -->
@@ -444,6 +445,19 @@
         <button id="btn-anno-add">Add / Update</button>
         <button id="btn-anno-remove" class="danger">Remove</button>
         <button id="btn-anno-clear" class="danger">Clear all</button>
+      </div>
+
+      <!-- Snapshot tab: capture / restore full chart state -->
+      <div class="tab-panel" id="tab-snapshot" role="tabpanel">
+        <div class="control-group" style="flex-direction:column;align-items:stretch;flex:1;min-width:0">
+          <label for="snapshot-json">Snapshot JSON</label>
+          <textarea id="snapshot-json" rows="6" style="width:100%;font-family:ui-monospace,monospace;font-size:11px" placeholder="Click Capture to fill, or paste a previously captured snapshot."></textarea>
+        </div>
+        <div class="control-group" style="flex-direction:column;align-items:stretch;gap:6px">
+          <button id="btn-snapshot-capture">Capture</button>
+          <button id="btn-snapshot-restore">Restore</button>
+          <button id="btn-snapshot-wipe" class="danger">Wipe chart</button>
+        </div>
       </div>
     </div>
 

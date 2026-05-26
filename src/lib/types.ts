@@ -177,6 +177,88 @@ export interface ChartSettings extends SeriesSettings, AxisSettings {
   zoomScaleExtent: [number, number]
 }
 
+/**
+ * ChartSettings minus the two function-valued fields, which cannot survive a JSON round-trip.
+ * Formatters are silently dropped on snapshot; on restore they retain whatever the host
+ * configured at construction.
+ */
+export type SerializableChartSettings = Omit<ChartSettings, 'xAxisFormatter' | 'yAxisFormatter'>
+
+export interface AxisSnapshot {
+  id: string
+  name: string
+  color: string | null
+  range: [number, number] | null
+  limits: [number, number] | null
+  scaleType: 'linear' | 'log' | undefined
+  showGrid: boolean | undefined
+  gridColor: string | undefined
+  gridOpacity: number | undefined
+}
+
+export interface SeriesSnapshot {
+  id: string
+  axisId: string
+  /** ISO 8601 strings — same shape Blazor sends across JS interop. */
+  data: RawDataPoint[]
+  color: string | undefined
+  lineWeight: number | undefined
+  dotRadius: number | undefined
+  curveType: CurveType | undefined
+  smoothing: number | undefined
+  decimation: number | undefined
+  showLabels: boolean | undefined
+  labelFormat: string | null | undefined
+  dotBorderColor: string | null | undefined
+}
+
+export type AnnotationSnapshot =
+  | {
+      type: 'horizontal'
+      id: string
+      label: string
+      color: string
+      thickness: number
+      dashed: boolean
+      y: number
+      axisId: string
+    }
+  | {
+      type: 'vertical'
+      id: string
+      label: string
+      color: string
+      thickness: number
+      dashed: boolean
+      /** ISO 8601 timestamp. */
+      x: string
+    }
+
+export interface ZoomSnapshot {
+  /** Flattened d3.ZoomTransform — { k, x, y } only. */
+  transform: { k: number; x: number; y: number }
+  /** Brush-set x-domain override; ISO date pair or null. */
+  xDomainOverride: [string, string] | null
+  /** Brush-set per-axis y-domain overrides. */
+  yDomainOverrides: Array<{ axisId: string; range: [number, number] }>
+}
+
+/**
+ * Complete chart state in a JSON-safe shape. Captured by `getSnapshot()` and consumed by
+ * `restoreSnapshot()`. Designed for Blazor JS interop — no Date instances, no functions.
+ *
+ * `xAxisFormatter` and `yAxisFormatter` are silently dropped from `settings`.
+ */
+export interface ChartSnapshot {
+  settings: SerializableChartSettings
+  axes: AxisSnapshot[]
+  series: SeriesSnapshot[]
+  annotations: AnnotationSnapshot[]
+  zoom: ZoomSnapshot
+  /** Palette cursor — preserves colour continuity for series added after restore. */
+  nextPaletteIndex: number
+}
+
 /** The object Blazor holds as IJSObjectReference */
 export interface LineChartHandle {
   /** Load initial data — hides skeleton and animates chart in */
@@ -264,4 +346,20 @@ export interface LineChartHandle {
   removeAnnotation(name: string): void
   /** Remove all annotations from the chart. */
   clearAnnotations(): void
+
+  // --- Snapshot API ---
+  /**
+   * Capture the chart's full mutable state as a JSON-safe snapshot.
+   * Includes settings (minus the two function formatters), every axis, every series with
+   * its data as ISO 8601 strings, every annotation, the current pan/zoom transform with
+   * any brush-set domain overrides, and the palette cursor.
+   */
+  getSnapshot(): ChartSnapshot
+  /**
+   * Replace the chart's state with the snapshot. Existing series, axes, annotations and
+   * zoom state are torn down first, then everything is rebuilt and a single re-render runs.
+   * `xAxisFormatter` / `yAxisFormatter` are not touched — whatever the host set at
+   * construction stays in place.
+   */
+  restoreSnapshot(snapshot: ChartSnapshot): void
 }

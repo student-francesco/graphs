@@ -12,6 +12,7 @@ import type {
   AxisSettings,
   HorizontalAnnotationSettings,
   VerticalAnnotationSettings,
+  ChartSnapshot,
 } from './types.ts'
 import { DEFAULT_SETTINGS, AXIS_WIDTH, TITLE_SPACE, X_LABEL_SPACE, Y_LABEL_SPACE } from './defaults.ts'
 import { movingAverage, lttb } from './transforms.ts'
@@ -709,7 +710,6 @@ export class LineChart implements LineChartHandle {
 
   removeSeries(id: string): void {
     this.assertAlive()
-    if (id === 'default') return
     this.series.delete(id)
     // Remove DOM group immediately
     const chartArea = this.innerG.select<SVGGElement>('.lc-chart-area')
@@ -755,6 +755,9 @@ export class LineChart implements LineChartHandle {
     s.pendingExitPoints = s.data.filter(p => !incomingSet.has(p.date.getTime()))
     s.data = incoming
 
+    this.dismissSkeleton()
+    this.ensureTooltip()
+
     if (sufficient) {
       this.render(this.settings.updateDataAnimation)
     } else {
@@ -775,6 +778,8 @@ export class LineChart implements LineChartHandle {
     const s = this.series.get(id)!
     s.data.push(parseRaw(point))
     s.pendingExitPoints = this.trimToMaxPoints(s)
+    this.dismissSkeleton()
+    this.ensureTooltip()
     if (s.data.length > 0) this.render(this.settings.appendAnimation)
   }
 
@@ -784,6 +789,8 @@ export class LineChart implements LineChartHandle {
     const s = this.series.get(id)!
     for (const p of points) s.data.push(parseRaw(p))
     s.pendingExitPoints = this.trimToMaxPoints(s)
+    this.dismissSkeleton()
+    this.ensureTooltip()
     if (s.data.length > 0) this.render(this.settings.appendAnimation)
   }
 
@@ -1953,6 +1960,250 @@ export class LineChart implements LineChartHandle {
     if (this.annotations.size === 0) return
     this.annotations.clear()
     if (this.hasData()) this.render('none')
+  }
+
+  // --- Snapshot API ---
+
+  getSnapshot(): ChartSnapshot {
+    this.assertAlive()
+
+    // Strip function-valued fields from settings — they cannot survive JSON.
+    const { xAxisFormatter: _xf, yAxisFormatter: _yf, ...serializableSettings } = this.settings
+
+    const axes = Array.from(this.axes.values()).map(a => ({
+      id: a.id,
+      name: a.name,
+      color: a.color,
+      range: a.range,
+      limits: a.limits,
+      scaleType: a.scaleType,
+      showGrid: a.showGrid,
+      gridColor: a.gridColor,
+      gridOpacity: a.gridOpacity,
+    }))
+
+    const series = Array.from(this.series.values()).map(s => ({
+      id: s.id,
+      axisId: s.axisId,
+      data: s.data.map(d => ({ date: d.date.toISOString(), value: d.value })),
+      color: s.color,
+      lineWeight: s.lineWeight,
+      dotRadius: s.dotRadius,
+      curveType: s.curveType,
+      smoothing: s.smoothing,
+      decimation: s.decimation,
+      showLabels: s.showLabels,
+      labelFormat: s.labelFormat,
+      dotBorderColor: s.dotBorderColor,
+    }))
+
+    const annotations = Array.from(this.annotations.values()).map(a =>
+      a.type === 'horizontal'
+        ? {
+            type: 'horizontal' as const,
+            id: a.id,
+            label: a.label,
+            color: a.color,
+            thickness: a.thickness,
+            dashed: a.dashed,
+            y: a.y,
+            axisId: a.axisId,
+          }
+        : {
+            type: 'vertical' as const,
+            id: a.id,
+            label: a.label,
+            color: a.color,
+            thickness: a.thickness,
+            dashed: a.dashed,
+            x: a.x.toISOString(),
+          },
+    )
+
+    const zoom = {
+      transform: { k: this.zoomTransform.k, x: this.zoomTransform.x, y: this.zoomTransform.y },
+      xDomainOverride: this.xDomainOverride
+        ? [this.xDomainOverride[0].toISOString(), this.xDomainOverride[1].toISOString()] as [string, string]
+        : null,
+      yDomainOverrides: Array.from(this.yDomainOverrides.entries()).map(([axisId, range]) => ({ axisId, range })),
+    }
+
+    return {
+      settings: serializableSettings,
+      axes,
+      series,
+      annotations,
+      zoom,
+      nextPaletteIndex: this.nextPaletteIndex,
+    }
+  }
+
+  restoreSnapshot(snapshot: ChartSnapshot): void {
+    this.assertAlive()
+
+    // Drop the existing d3.zoom transform synchronously. Setting zoomTransform via
+    // .call(zoom.transform, identity) would fire the zoom handler → render() — risky
+    // mid-teardown. Instead we mutate the field, then sync the d3.zoom internal state
+    // below once all data is in place.
+    this.zoomTransform = d3.zoomIdentity
+    this.xDomainOverride = null
+    this.yDomainOverrides.clear()
+
+    // Tear down domain state.
+    this.annotations.clear()
+    this.series.clear()
+    this.axes.clear()
+
+    // Preserve formatter functions — they aren't carried in the snapshot.
+    const xAxisFormatter = this.settings.xAxisFormatter
+    const yAxisFormatter = this.settings.yAxisFormatter
+    this.settings = { ...this.settings, ...snapshot.settings, xAxisFormatter, yAxisFormatter }
+    this.svg.node()!.dataset.theme = this.settings.theme
+    this.svg.attr('aria-label', this.settings.ariaLabel)
+    this.zoom.scaleExtent(this.settings.zoomScaleExtent)
+
+    // Rebuild axes (must precede series so axisId resolution works).
+    for (const a of snapshot.axes) {
+      this.axes.set(a.id, {
+        id: a.id,
+        name: a.name,
+        color: a.color,
+        range: a.range,
+        limits: a.limits,
+        scaleType: a.scaleType,
+        showGrid: a.showGrid,
+        gridColor: a.gridColor,
+        gridOpacity: a.gridOpacity,
+      })
+    }
+    // Chart invariant: at least one axis must exist.
+    if (this.axes.size === 0) {
+      this.axes.set(DEFAULT_AXIS_ID, {
+        id: DEFAULT_AXIS_ID,
+        name: DEFAULT_AXIS_ID,
+        color: null,
+        range: null,
+        limits: null,
+        scaleType: undefined,
+        showGrid: undefined,
+        gridColor: undefined,
+        gridOpacity: undefined,
+      })
+    }
+
+    // Rebuild series.
+    for (const s of snapshot.series) {
+      const axisId = this.axes.has(s.axisId) ? s.axisId : this.firstAxisId()
+      this.series.set(s.id, {
+        id: s.id,
+        data: s.data.map(parseRaw),
+        pendingExitPoints: [],
+        color: s.color,
+        lineWeight: s.lineWeight,
+        dotRadius: s.dotRadius,
+        curveType: s.curveType,
+        axisId,
+        smoothing: s.smoothing,
+        decimation: s.decimation,
+        showLabels: s.showLabels,
+        labelFormat: s.labelFormat,
+        dotBorderColor: s.dotBorderColor,
+      })
+    }
+    // Chart invariant: 'default' series is assumed to exist by setData(array) and friends.
+    if (!this.series.has('default')) {
+      this.series.set('default', {
+        id: 'default',
+        data: [],
+        pendingExitPoints: [],
+        color: undefined,
+        lineWeight: undefined,
+        dotRadius: undefined,
+        curveType: undefined,
+        axisId: this.firstAxisId(),
+        smoothing: undefined,
+        decimation: undefined,
+        showLabels: undefined,
+        labelFormat: undefined,
+        dotBorderColor: undefined,
+      })
+    }
+
+    // Rebuild annotations.
+    for (const a of snapshot.annotations) {
+      if (a.type === 'horizontal') {
+        this.annotations.set(a.id, {
+          type: 'horizontal',
+          id: a.id,
+          label: a.label,
+          color: a.color,
+          thickness: a.thickness,
+          dashed: a.dashed,
+          y: a.y,
+          axisId: this.axes.has(a.axisId) ? a.axisId : this.firstAxisId(),
+        })
+      } else {
+        const x = new Date(a.x)
+        if (isNaN(x.getTime())) continue
+        this.annotations.set(a.id, {
+          type: 'vertical',
+          id: a.id,
+          label: a.label,
+          color: a.color,
+          thickness: a.thickness,
+          dashed: a.dashed,
+          x,
+        })
+      }
+    }
+
+    // Restore brush-set overrides (filtered through current axis set).
+    if (snapshot.zoom.xDomainOverride) {
+      const [a, b] = snapshot.zoom.xDomainOverride
+      const da = new Date(a)
+      const db = new Date(b)
+      if (!isNaN(da.getTime()) && !isNaN(db.getTime())) {
+        this.xDomainOverride = [da, db]
+      }
+    }
+    for (const yo of snapshot.zoom.yDomainOverrides) {
+      if (this.axes.has(yo.axisId)) this.yDomainOverrides.set(yo.axisId, yo.range)
+    }
+
+    this.nextPaletteIndex = snapshot.nextPaletteIndex
+
+    // Tooltip controller — rebuild so theme/format changes from snapshot.settings take effect.
+    this.tooltip?.destroy()
+    this.tooltip = null
+    if (this.settings.showTooltip && this.hasData()) {
+      this.ensureTooltip()
+    }
+
+    // Render outcome depends on whether there is any data to show.
+    if (this.hasData()) {
+      // Drop the skeleton overlay if it's still up.
+      this.dismissSkeleton()
+      // Wipe DOM nodes from the prior chart so render() starts from a clean slate
+      // (otherwise stale .lc-series groups from the pre-restore state can linger).
+      this.innerG.selectAll('*').remove()
+      this.axisOverlayG?.selectAll('*').remove()
+
+      // Sync the d3.zoom internal transform store. .call(zoom.transform, t) fires the
+      // zoom handler which assigns this.zoomTransform and calls render('none'). When t
+      // is identity (no zoom in snapshot), this is just a cheap re-render.
+      const t = d3.zoomIdentity
+        .translate(snapshot.zoom.transform.x, snapshot.zoom.transform.y)
+        .scale(snapshot.zoom.transform.k)
+      this.svg.call(this.zoom.transform, t)
+    } else {
+      // No data → return to skeleton state. Clear any old DOM and reset zoom.
+      this.svg.call(this.zoom.transform, d3.zoomIdentity)
+      this.innerG.selectAll('*').remove()
+      this.axisOverlayG?.selectAll('*').remove()
+      this.hasSkeleton = true
+      renderSkeleton(this.svg, this.width, this.height, this.effectiveMargins())
+      this.renderTitleAndLabels()
+    }
   }
 
   private assertAlive(): void {
