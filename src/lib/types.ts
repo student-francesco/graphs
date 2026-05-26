@@ -90,6 +90,25 @@ export interface AxisSettings {
 /** @deprecated Use AxisSettings. */
 export type AxisOptions = AxisSettings
 
+/** Common visual styling for annotation lines. Unset fields fall back to chart-wide annotation defaults. */
+export interface AnnotationStyle {
+  /** Stroke colour. */
+  color?: string
+  /** Stroke width in pixels. */
+  thickness?: number
+  /** Dashed stroke (true → '6 4', false → solid). */
+  dashed?: boolean
+}
+
+/** Settings for a horizontal annotation. Extends AnnotationStyle with the y-axis binding. */
+export interface HorizontalAnnotationSettings extends AnnotationStyle {
+  /** Id of the y-axis this annotation is pinned to. Unknown ids fall back to the first axis. Removing the bound axis removes the annotation. */
+  axis?: string
+}
+
+/** Settings for a vertical annotation — purely visual; the line position is set by its timestamp. */
+export type VerticalAnnotationSettings = AnnotationStyle
+
 /**
  * Chart-wide settings. Extends SeriesSettings and AxisSettings so that every per-series and
  * per-axis property has a global default here. Per-series/axis overrides set via
@@ -221,4 +240,28 @@ export interface LineChartHandle {
   associateSeries(seriesName: string, axisName: string): void
   /** Sparse-merge settings into a specific axis and re-render. Use undefined values to reset a field to the chart-wide default. */
   updateAxisSettings(id: string, settings: Partial<AxisSettings>): void
+
+  // --- Annotation API ---
+  /**
+   * Create a horizontal line across the chart, pinned to a y-axis.
+   * `y` is in the bound axis's value space and the axis treats it like a data point to ensure it remains within the ranges. `settings.axis` selects the axis (defaults to the first axis).
+   * Removing the bound y-axis also removes this annotation.
+   * Replaces any existing annotation with the same name.
+   */
+  setHorizontalLine(name: string, y: number, label: string, settings?: HorizontalAnnotationSettings): void
+  /**
+   * Create a vertical line at the given timestamp.
+   * `x` is an ISO 8601 date string (same format Blazor sends for `RawDataPoint.date`); it is parsed to a Date internally.
+   * Vertical annotations are not tied to any y-axis and survive y-axis removal.
+   * Replaces any existing annotation with the same name.
+   */
+  setVerticalLine(name: string, x: string, label: string, settings?: VerticalAnnotationSettings): void
+
+  /**
+   * Remove an existing annotation.
+   * No-op if the annotation does not exist.
+   */
+  removeAnnotation(name: string): void
+  /** Remove all annotations from the chart. */
+  clearAnnotations(): void
 }

@@ -10,6 +10,8 @@ import type {
   AnimationMode,
   SeriesSettings,
   AxisSettings,
+  HorizontalAnnotationSettings,
+  VerticalAnnotationSettings,
 } from './types.ts'
 import { DEFAULT_SETTINGS, AXIS_WIDTH, TITLE_SPACE, X_LABEL_SPACE, Y_LABEL_SPACE } from './defaults.ts'
 import { movingAverage, lttb } from './transforms.ts'
@@ -59,6 +61,37 @@ interface SeriesState {
   dotBorderColor: string | null | undefined // undefined = cascade; null = auto from theme
 }
 
+/**
+ * Internal annotation representation. Discriminated union — horizontal carries a y-value
+ * in its bound axis's space; vertical carries a parsed Date in x-axis space.
+ */
+type Annotation = HorizontalAnnotation | VerticalAnnotation
+
+interface AnnotationBase {
+  id: string
+  label: string       // hover tooltip text from the public `label` arg
+  color: string       // resolved against ANNOTATION_DEFAULTS at write time
+  thickness: number   // resolved
+  dashed: boolean     // resolved
+}
+
+interface HorizontalAnnotation extends AnnotationBase {
+  type: 'horizontal'
+  y: number
+  axisId: string
+}
+
+interface VerticalAnnotation extends AnnotationBase {
+  type: 'vertical'
+  x: Date
+}
+
+const ANNOTATION_DEFAULTS = {
+  color: '#6366f1',
+  thickness: 1.5,
+  dashed: true,
+} as const
+
 interface AxisState {
   id: string
   name: string
@@ -86,6 +119,10 @@ function parseRaw(raw: RawDataPoint): DataPoint {
   return { date: d, value: raw.value }
 }
 
+/*
+ * Compute the diff between two arrays of data points, returning the number of
+ * overlapping points.
+ */
 function computeOverlap(a: DataPoint[], b: DataPoint[]): number {
   const setA = new Set(a.map(p => p.date.getTime()))
   let count = 0
@@ -102,6 +139,12 @@ export class LineChart implements LineChartHandle {
   private innerG: d3.Selection<SVGGElement, unknown, null, undefined>
   private series: Map<string, SeriesState> = new Map()
   private axes: Map<string, AxisState> = new Map()
+  /**
+   * All chart annotations keyed by name. Horizontal annotations carry an `axisId`
+   * and are cascade-removed when their bound y-axis is dropped. Vertical
+   * annotations are axis-agnostic and persist across axis removal.
+   */
+  private annotations: Map<string, Annotation> = new Map()
   private nextPaletteIndex = 0
   private static readonly PALETTE = [
     '#e11d48', '#0891b2', '#16a34a', '#d97706', '#7c3aed', '#db2777', '#0284c7', '#4f46e5',
@@ -828,6 +871,10 @@ export class LineChart implements LineChartHandle {
     for (const s of this.series.values()) {
       if (s.axisId === name) s.axisId = fallback
     }
+    // Cascade: Annotations which depend on an axis are not migrated to another axis
+    for (const [id, ann] of this.annotations) {
+      if ('axisId' in ann && ann.axisId === name) this.annotations.delete(id)
+    }
     // Remove DOM chrome immediately so per-axis exit anims don't linger.
     const overlay = this.axisOverlayG ?? this.innerG
     overlay.select(`.lc-y-axis[data-axis-id="${name}"]`).remove()
@@ -1043,6 +1090,21 @@ export class LineChart implements LineChartHandle {
   }
 
   /**
+   * Yields every y-value that should participate in an axis's auto-extent:
+   * series data points bound to the axis, plus the y of any horizontal
+   * annotation pinned to it.
+   */
+  private *axisYValues(axisId: string): Generator<number> {
+    for (const s of this.series.values()) {
+      if (s.axisId !== axisId) continue
+      for (const p of this.getSmoothedData(s)) yield p.value
+    }
+    for (const ann of this.annotations.values()) {
+      if ('axisId' in ann && ann.axisId === axisId) yield ann.y
+    }
+  }
+
+  /**
    * Domain selection:
    *   1. range present → use [range[0], range[1]] verbatim (no padding, no .nice()).
    *   2. limits present → auto extent from associated series, clamped to limits, then padded + nice.
@@ -1061,11 +1123,9 @@ export class LineChart implements LineChartHandle {
       return d3.scaleLinear().domain([axis.range[0], axis.range[1]]).range([this.innerHeight, 0])
     }
 
-    const points = Array.from(this.series.values())
-      .filter(s => s.axisId === axis.id)
-      .flatMap(s => this.getSmoothedData(s))
+    const values = Array.from(this.axisYValues(axis.id))
 
-    if (points.length === 0) {
+    if (values.length === 0) {
       const [lo, hi] = axis.limits ?? (isLog ? [0.1, 10] : [0, 1])
       if (isLog) {
         return d3.scaleLog().base(10).domain([Math.max(lo, 1e-10), Math.max(hi, 1e-9)]).range([this.innerHeight, 0])
@@ -1073,8 +1133,8 @@ export class LineChart implements LineChartHandle {
       return d3.scaleLinear().domain([lo, hi]).nice().range([this.innerHeight, 0])
     }
 
-    let yMin = d3.min(points, d => d.value) ?? 0
-    let yMax = d3.max(points, d => d.value) ?? 0
+    let yMin = d3.min(values) ?? 0
+    let yMax = d3.max(values) ?? 0
     if (axis.limits) {
       yMin = Math.max(yMin, axis.limits[0])
       yMax = Math.min(yMax, axis.limits[1])
@@ -1228,6 +1288,8 @@ export class LineChart implements LineChartHandle {
       this.renderDots(g, s, display, xScale, yScale, mode, duration, ease)
       this.renderLabels(g, s, display, xScale, yScale, mode, duration, ease)
     })
+
+    this.renderAnnotations(chartArea, xScale, yScales, primaryYScale, mode, duration, ease)
 
     if (this.settings.showTooltip && this.tooltip !== null) {
       this.renderHoverZones(scrollContainer, xScale, yScaleFor)
@@ -1600,6 +1662,106 @@ export class LineChart implements LineChartHandle {
     zones.exit().remove()
   }
 
+  /**
+   * Render the chart-level annotation layer as a sibling of the scroll container
+   * inside `lc-chart-area`. Sharing the chart-area clip-path keeps vertical lines
+   * neatly clipped at the chart edges, while staying out of the scroll container
+   * means horizontal lines always span the full visible width — they don't
+   * inherit the container's transient translateX during `transition` animations.
+   *
+   * Fade lifecycle mirrors `renderDots`: new annotations enter at opacity 0 and
+   * transition up to the resting opacity; updates smoothly tween line position
+   * when the host render is animated; exits are renamed to `lc-annotation-exiting`
+   * so subsequent joins ignore them, then fade out and remove.
+   */
+  private renderAnnotations(
+    chartArea: d3.Selection<SVGGElement, unknown, null, undefined>,
+    xScale: d3.ScaleTime<number, number>,
+    yScales: Map<string, YScale>,
+    primaryYScale: YScale,
+    mode: AnimationMode,
+    duration: number,
+    ease: (t: number) => number,
+  ): void {
+    const RESTING_OPACITY = 0.85
+
+    let layer = chartArea.select<SVGGElement>('.lc-annotations')
+    if (layer.empty()) {
+      // Append (not insert) so the layer renders on top of all series content.
+      layer = chartArea.append('g').attr('class', 'lc-annotations')
+    }
+
+    const data = Array.from(this.annotations.values())
+    const groups = layer
+      .selectAll<SVGGElement, Annotation>('.lc-annotation')
+      .data(data, ann => ann.id)
+
+    // Exit: rename so a future join can't pick these up, then fade and remove.
+    const exit = groups.exit<Annotation>().attr('class', 'lc-annotation-exiting')
+    if (duration > 0) {
+      exit.transition().duration(duration).ease(ease).style('opacity', 0).remove()
+    } else {
+      exit.remove()
+    }
+
+    // Enter: build the element scaffold, start invisible so the fade-in is visible
+    // regardless of which render mode triggered the join.
+    const enter = groups.enter()
+      .append('g')
+      .attr('class', 'lc-annotation')
+      .attr('data-id', ann => ann.id)
+      .style('opacity', 0)
+    enter.append('line').attr('pointer-events', 'stroke')
+    enter.append('title')
+
+    const merged = enter.merge(groups)
+
+    // Static (non-position) attributes — safe to set without a transition.
+    merged.select<SVGLineElement>('line')
+      .attr('stroke', ann => (ann as Annotation).color)
+      .attr('stroke-width', ann => (ann as Annotation).thickness)
+      .attr('stroke-dasharray', ann => (ann as Annotation).dashed ? '6 4' : null)
+    merged.select<SVGTitleElement>('title').text(ann => (ann as Annotation).label)
+
+    // Geometry helpers — same target coordinates regardless of whether the
+    // attributes are set instantly or through a transition.
+    const innerW = this.innerWidth
+    const innerH = this.innerHeight
+    const x1 = (ann: Annotation): number => ann.type === 'horizontal' ? 0      : xScale(ann.x)
+    const x2 = (ann: Annotation): number => ann.type === 'horizontal' ? innerW : xScale(ann.x)
+    const y1 = (ann: Annotation): number => ann.type === 'horizontal' ? (yScales.get(ann.axisId) ?? primaryYScale)(ann.y) : 0
+    const y2 = (ann: Annotation): number => ann.type === 'horizontal' ? (yScales.get(ann.axisId) ?? primaryYScale)(ann.y) : innerH
+
+    // .call(applyGeom) works on both Selection and Transition, so the same
+    // helper drives the snap and the tween.
+    const applyGeom = (sel: d3.Selection<SVGLineElement, Annotation, SVGGElement, unknown> | d3.Transition<SVGLineElement, Annotation, SVGGElement, unknown>): void => {
+      (sel as d3.Selection<SVGLineElement, Annotation, SVGGElement, unknown>)
+        .attr('x1', x1)
+        .attr('x2', x2)
+        .attr('y1', y1)
+        .attr('y2', y2)
+    }
+
+    // Snap entering lines to their target geometry so the visible animation is
+    // only the opacity fade — without this, the line interpolates from (0,0).
+    enter.select<SVGLineElement>('line').call(applyGeom as never)
+
+    const animate = mode !== 'none' && duration > 0
+    const lines = merged.select<SVGLineElement>('line')
+    if (animate) {
+      lines.transition().duration(duration).ease(ease).call(applyGeom as never)
+    } else {
+      lines.call(applyGeom as never)
+    }
+
+    // Opacity: animate enter (from 0) and any post-exit re-add up to RESTING_OPACITY.
+    if (animate) {
+      merged.transition().duration(duration).ease(ease).style('opacity', RESTING_OPACITY)
+    } else {
+      merged.style('opacity', RESTING_OPACITY)
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Modifier brush (ctrl / cmd + drag)
   // ---------------------------------------------------------------------------
@@ -1740,6 +1902,57 @@ export class LineChart implements LineChartHandle {
     } else {
       this.render('none')
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chart Annotations
+  // ---------------------------------------------------------------------------
+
+  setHorizontalLine(name: string, y: number, label: string, settings?: HorizontalAnnotationSettings): void {
+    this.assertAlive()
+    const axisId = settings?.axis !== undefined && this.axes.has(settings.axis)
+      ? settings.axis
+      : this.firstAxisId()
+    this.annotations.set(name, {
+      id: name,
+      type: 'horizontal',
+      y,
+      axisId,
+      label,
+      color:     settings?.color     ?? ANNOTATION_DEFAULTS.color,
+      thickness: settings?.thickness ?? ANNOTATION_DEFAULTS.thickness,
+      dashed:    settings?.dashed    ?? ANNOTATION_DEFAULTS.dashed,
+    })
+    if (this.hasData()) this.render('none')
+  }
+
+  setVerticalLine(name: string, x: string, label: string, settings?: VerticalAnnotationSettings): void {
+    this.assertAlive()
+    const date = new Date(x)
+    if (isNaN(date.getTime())) throw new Error(`LineChart: invalid date "${x}"`)
+    this.annotations.set(name, {
+      id: name,
+      type: 'vertical',
+      x: date,
+      label,
+      color:     settings?.color     ?? ANNOTATION_DEFAULTS.color,
+      thickness: settings?.thickness ?? ANNOTATION_DEFAULTS.thickness,
+      dashed:    settings?.dashed    ?? ANNOTATION_DEFAULTS.dashed,
+    })
+    if (this.hasData()) this.render('none')
+  }
+
+  removeAnnotation(name: string): void {
+    this.assertAlive()
+    if (!this.annotations.delete(name)) return
+    if (this.hasData()) this.render('none')
+  }
+
+  clearAnnotations(): void {
+    this.assertAlive()
+    if (this.annotations.size === 0) return
+    this.annotations.clear()
+    if (this.hasData()) this.render('none')
   }
 
   private assertAlive(): void {

@@ -8,6 +8,9 @@ export type {
   SeriesSettings,
   AxisSettings,
   AxisOptions,
+  AnnotationStyle,
+  HorizontalAnnotationSettings,
+  VerticalAnnotationSettings,
   LineChartHandle,
 } from './types.ts'
 export { DEFAULT_SETTINGS } from './defaults.ts'
@@ -57,5 +60,9 @@ export function createLineChart(
     removeAxis: chart.removeAxis.bind(chart),
     associateSeries: chart.associateSeries.bind(chart),
     updateAxisSettings: chart.updateAxisSettings.bind(chart),
+    setHorizontalLine: chart.setHorizontalLine.bind(chart),
+    setVerticalLine: chart.setVerticalLine.bind(chart),
+    removeAnnotation: chart.removeAnnotation.bind(chart),
+    clearAnnotations: chart.clearAnnotations.bind(chart),
   }
 }
