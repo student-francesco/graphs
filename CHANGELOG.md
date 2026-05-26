@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.0] - 2026-05-26
+
+### Added
+- Annotation API — overlay horizontal or vertical reference lines on the chart for hysteresis indicators, thresholds, event markers, etc.
+  - `setHorizontalLine(name, y, label, settings?)` — pinned to a y-axis; `y` is treated as a data point so the axis range includes it
+  - `setVerticalLine(name, x, label, settings?)` — pinned to a timestamp (ISO 8601 string); not tied to any y-axis
+  - `removeAnnotation(name)` and `clearAnnotations()`
+  - New `AnnotationStyle`, `HorizontalAnnotationSettings`, `VerticalAnnotationSettings` types
+- Snapshot API — capture and restore the chart's full mutable state for Blazor JS interop
+  - `getSnapshot()` returns a JSON-safe `ChartSnapshot` (settings, axes, series, annotations, zoom + brush overrides, palette cursor)
+  - `restoreSnapshot(snapshot)` tears down current state and rebuilds from the snapshot in a single re-render
+  - `xAxisFormatter` / `yAxisFormatter` are silently dropped on capture and preserved from the host on restore (functions cannot survive JSON)
+  - New `ChartSnapshot`, `SerializableChartSettings`, `AxisSnapshot`, `SeriesSnapshot`, `AnnotationSnapshot`, `ZoomSnapshot` types
+- Dev harness gains Annotations and Snapshot tabs
+
+### Changed
+- `removeSeries('default')` is no longer a no-op — hosts can now fully clear the chart
+- `setData`, `addPoint`, and `addPoints` now dismiss the skeleton and ensure the tooltip controller — any data-ingress call brings the chart out of its initial empty state (previously only `setData` did)
+
+---
+
 ## [0.0.6] - 2026-05-22
 
 ### Added
