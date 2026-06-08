@@ -125,6 +125,7 @@ export function renderAxes(config: AxesConfig): void {
         return (settings.xAxisFormatter as unknown as DotNetDelegate).invokeMethod('executeDelegate', d.toISOString(), i)
       } catch {
         console.warn('Error formatting axis tick label with C# delegate')
+        console.log(settings.yAxisFormatter)
         return defaultFormatter(d)
       }
     }
@@ -213,6 +214,7 @@ export function renderAxes(config: AxesConfig): void {
             return (settings.yAxisFormatter as unknown as DotNetDelegate).invokeMethod('executeDelegate', d as number, i)
           } catch {
             console.warn('Error formatting axis tick label with C# delegate')
+            console.log(settings.yAxisFormatter)
             return String(d)
           }
         }

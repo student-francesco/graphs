@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.4] - 2026-06-08
+
+### Changed
+- Added debug logging (`console.log`) in Blazor delegate formatter catch blocks to aid diagnosis
+
+---
+
 ## [0.1.3] - 2026-06-08
 
 ### Fixed
