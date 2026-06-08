@@ -87,9 +87,6 @@ export interface AxisSettings {
   gridOpacity?: number
 }
 
-/** @deprecated Use AxisSettings. */
-export type AxisOptions = AxisSettings
-
 /** Common visual styling for annotation lines. Unset fields fall back to chart-wide annotation defaults. */
 export interface AnnotationStyle {
   /** Stroke colour. */

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1] - 2026-06-08
+
+### Changed
+- `xAxisFormatter` and `yAxisFormatter` now support Blazor `.NET` delegate wrappers: if the value exposes `AmIJsDelegateWrapper`, it is invoked via `invokeMethod('ExecuteDelegate', …)` instead of as a plain JS function, enabling C# `Func<>` delegates to be passed directly from Blazor
+
+### Removed
+- Deprecated `AxisOptions` type alias (already marked `@deprecated Use AxisSettings`)
+
+---
+
 ## [0.1.0] - 2026-05-26
 
 ### Added

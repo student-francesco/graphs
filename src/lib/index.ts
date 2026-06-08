@@ -7,7 +7,6 @@ export type {
   AnimationMode,
   SeriesSettings,
   AxisSettings,
-  AxisOptions,
   AnnotationStyle,
   HorizontalAnnotationSettings,
   VerticalAnnotationSettings,

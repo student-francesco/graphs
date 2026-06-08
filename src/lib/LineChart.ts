@@ -205,7 +205,7 @@ export class LineChart implements LineChartHandle {
     this.container = el
     this.settings = { ...DEFAULT_SETTINGS, ...settings }
 
-    // Seed the default y-axis. color:null preserves existing single-axis visual behaviour.
+    // Seed the default y-axis. colour:null preserves existing single-axis visual behaviour.
     this.axes.set(DEFAULT_AXIS_ID, {
       id: DEFAULT_AXIS_ID,
       name: DEFAULT_AXIS_ID,
@@ -218,7 +218,7 @@ export class LineChart implements LineChartHandle {
       gridOpacity: undefined,
     })
 
-    // Initialise the default series — display properties left undefined so they
+    // Initialize the default series — display properties left undefined so they
     // always fall back to the current chart-wide settings at render time.
     this.series.set('default', {
       id: 'default',
@@ -908,10 +908,10 @@ export class LineChart implements LineChartHandle {
     if ('color' in settings)       axis.color = settings.color ?? null
     if ('range' in settings)       axis.range = settings.range ?? null
     if ('limits' in settings)      axis.limits = settings.limits ?? null
-    if ('scaleType' in settings)   axis.scaleType = settings.scaleType
-    if ('showGrid' in settings)    axis.showGrid = settings.showGrid
-    if ('gridColor' in settings)   axis.gridColor = settings.gridColor
-    if ('gridOpacity' in settings) axis.gridOpacity = settings.gridOpacity
+    if ('scaleType' in settings)    axis.scaleType = settings.scaleType
+    if ('showGrid' in settings)     axis.showGrid = settings.showGrid
+    if ('gridColor' in settings)    axis.gridColor = settings.gridColor
+    if ('gridOpacity' in settings)  axis.gridOpacity = settings.gridOpacity
     if (this.hasData()) this.render('none')
   }
 

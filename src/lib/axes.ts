@@ -117,8 +117,18 @@ export function renderAxes(config: AxesConfig): void {
   // ---- X Axis ticks (data-join — managed like dots, inside scroll container) ----
   const ticks = xScale.ticks()
   const defaultFormatter = xScale.tickFormat()
-  const formatTick = (d: Date, i: number): string =>
-    settings.xAxisFormatter ? settings.xAxisFormatter(d, i) : defaultFormatter(d)
+  type DotNetDelegate = { invokeMethod(method: string, ...args: unknown[]): string }
+  const formatTick = (d: Date, i: number): string => {
+    if (!settings.xAxisFormatter) return defaultFormatter(d)
+    if ('AmIJsDelegateWrapper' in (settings.xAxisFormatter as object)) {
+      try {
+        return (settings.xAxisFormatter as unknown as DotNetDelegate).invokeMethod('ExecuteDelegate', d.toISOString(), i)
+      } catch {
+        return defaultFormatter(d)
+      }
+    }
+    return settings.xAxisFormatter(d, i)
+  }
 
   const tickSel = scrollG
     .selectAll<SVGGElement, Date>('.lc-x-tick')
@@ -196,7 +206,16 @@ export function renderAxes(config: AxesConfig): void {
 
     const gen = axis.position === 'right' ? d3.axisRight(yScale) : d3.axisLeft(yScale)
     if (settings.yAxisFormatter !== null) {
-      gen.tickFormat((d, i) => settings.yAxisFormatter!(d as number, i))
+      gen.tickFormat((d, i) => {
+        if ('AmIJsDelegateWrapper' in (settings.yAxisFormatter as object)) {
+          try {
+            return (settings.yAxisFormatter as unknown as DotNetDelegate).invokeMethod('ExecuteDelegate', d as number, i)
+          } catch {
+            return String(d)
+          }
+        }
+        return settings.yAxisFormatter!(d as number, i)
+      })
     } else if (axis.scaleType === 'log') {
       gen.ticks(5, d3.format('.2~s'))
     }
