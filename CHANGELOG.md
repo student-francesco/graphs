@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2] - 2026-06-08
+
+### Changed
+- Renamed Blazor delegate wrapper JS method identifiers to camelCase: `executeDelegate`, `amIJsDelegateWrapper`
+
+---
+
 ## [0.1.1] - 2026-06-08
 
 ### Changed

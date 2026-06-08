@@ -120,9 +120,9 @@ export function renderAxes(config: AxesConfig): void {
   type DotNetDelegate = { invokeMethod(method: string, ...args: unknown[]): string }
   const formatTick = (d: Date, i: number): string => {
     if (!settings.xAxisFormatter) return defaultFormatter(d)
-    if ('AmIJsDelegateWrapper' in (settings.xAxisFormatter as object)) {
+    if ('amIJsDelegateWrapper' in (settings.xAxisFormatter as object)) {
       try {
-        return (settings.xAxisFormatter as unknown as DotNetDelegate).invokeMethod('ExecuteDelegate', d.toISOString(), i)
+        return (settings.xAxisFormatter as unknown as DotNetDelegate).invokeMethod('executeDelegate', d.toISOString(), i)
       } catch {
         return defaultFormatter(d)
       }
@@ -207,9 +207,9 @@ export function renderAxes(config: AxesConfig): void {
     const gen = axis.position === 'right' ? d3.axisRight(yScale) : d3.axisLeft(yScale)
     if (settings.yAxisFormatter !== null) {
       gen.tickFormat((d, i) => {
-        if ('AmIJsDelegateWrapper' in (settings.yAxisFormatter as object)) {
+        if ('amIJsDelegateWrapper' in (settings.yAxisFormatter as object)) {
           try {
-            return (settings.yAxisFormatter as unknown as DotNetDelegate).invokeMethod('ExecuteDelegate', d as number, i)
+            return (settings.yAxisFormatter as unknown as DotNetDelegate).invokeMethod('executeDelegate', d as number, i)
           } catch {
             return String(d)
           }
