@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3] - 2026-06-08
+
+### Fixed
+- Blazor delegate wrapper detection now uses `typeof formatter !== 'function'` instead of a property existence check, fixing a `JSException: yAxisFormatter is not a function` crash when a C# delegate was passed
+
+---
+
 ## [0.1.2] - 2026-06-08
 
 ### Changed

@@ -120,10 +120,11 @@ export function renderAxes(config: AxesConfig): void {
   type DotNetDelegate = { invokeMethod(method: string, ...args: unknown[]): string }
   const formatTick = (d: Date, i: number): string => {
     if (!settings.xAxisFormatter) return defaultFormatter(d)
-    if ('amIJsDelegateWrapper' in (settings.xAxisFormatter as object)) {
+    if (typeof settings.xAxisFormatter !== 'function') {
       try {
         return (settings.xAxisFormatter as unknown as DotNetDelegate).invokeMethod('executeDelegate', d.toISOString(), i)
       } catch {
+        console.warn('Error formatting axis tick label with C# delegate')
         return defaultFormatter(d)
       }
     }
@@ -207,14 +208,15 @@ export function renderAxes(config: AxesConfig): void {
     const gen = axis.position === 'right' ? d3.axisRight(yScale) : d3.axisLeft(yScale)
     if (settings.yAxisFormatter !== null) {
       gen.tickFormat((d, i) => {
-        if ('amIJsDelegateWrapper' in (settings.yAxisFormatter as object)) {
+        if (typeof settings.yAxisFormatter !== 'function') {
           try {
             return (settings.yAxisFormatter as unknown as DotNetDelegate).invokeMethod('executeDelegate', d as number, i)
           } catch {
+            console.warn('Error formatting axis tick label with C# delegate')
             return String(d)
           }
         }
-        return settings.yAxisFormatter!(d as number, i)
+        return settings.yAxisFormatter(d as number, i)
       })
     } else if (axis.scaleType === 'log') {
       gen.ticks(5, d3.format('.2~s'))
