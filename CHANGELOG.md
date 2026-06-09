@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-06-09
+
+### Changed
+- Blazor `.NET` C# delegate formatters for **both** axes are now invoked asynchronously via `invokeMethodAsync`, with tick labels resolved up-front before rendering. The y-axis was brought in line with the x-axis, which already used this pattern. `renderAxes` is now `async` and returns a `Promise<void>`.
+
+### Fixed
+- Blazor Server delegate formatters on the y-axis now work — the previous synchronous `invokeMethod` path is unsupported on Blazor Server (which only allows asynchronous C# invocation). Both axes fall back to the default formatter if the interop call fails.
+
+---
+
 ## [0.1.4] - 2026-06-08
 
 ### Changed

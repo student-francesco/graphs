@@ -36,7 +36,25 @@ export interface AxesConfig {
   ease: (t: number) => number
 }
 
-export function renderAxes(config: AxesConfig): void {
+/**
+ * Renders all chart axes (x-axis, y-axes), grid lines, and axis labels.
+ *
+ * This function orchestrates the complete axis rendering pipeline:
+ * - Horizontal and vertical grid lines (driven by the primary y-axis scale)
+ * - X-axis baseline and tick marks with labels
+ * - Y-axis rails, ticks, and optional axis names
+ *
+ * **Asynchronous behaviour**: This function is declared `async` to support .NET interop scenarios.
+ * When `settings.xAxisFormatter` or `settings.yAxisFormatter` is a C# delegate provided from
+ * the .NET side (e.g. via Blazor Server JS interop), invoking it requires an asynchronous call
+ * (`invokeMethodAsync`). Although the current implementation uses synchronous fallback patterns,
+ * the function signature remains `async` to accommodate future true async formatter invocations
+ * without breaking API compatibility.
+ *
+ * @param config - Complete axis rendering configuration including scales, layout, containers, and animation settings
+ * @returns A promise that resolves when all axis rendering is complete
+ */
+export async function renderAxes(config: AxesConfig): Promise<void> {
   const {
     g, chartAreaG, scrollG,
     xScale, yScales, layout,
@@ -45,7 +63,7 @@ export function renderAxes(config: AxesConfig): void {
   } = config
   const animate = mode !== 'none'
   // In transition mode the container scroll drives all horizontal motion — elements
-  // must snap to their final positions so they move as one unit with the container.
+  // must snap to their final positions, so they move as one unit with the container.
   const animateScrollContent = animate && mode !== 'transition'
 
   // Primary y-scale drives the horizontal grid (avoids ambiguous grid lines under disparate scales).
@@ -115,21 +133,35 @@ export function renderAxes(config: AxesConfig): void {
     .attr('y2', innerHeight)
 
   // ---- X Axis ticks (data-join — managed like dots, inside scroll container) ----
+  let tryXAxisFromBlazor = false;
   const ticks = xScale.ticks()
   const defaultFormatter = xScale.tickFormat()
-  type DotNetDelegate = { invokeMethod(method: string, ...args: unknown[]): string }
-  const formatTick = (d: Date, i: number): string => {
-    if (!settings.xAxisFormatter) return defaultFormatter(d)
-    if (typeof settings.xAxisFormatter !== 'function') {
-      try {
-        return (settings.xAxisFormatter as unknown as DotNetDelegate).invokeMethod('executeDelegate', d.toISOString(), i)
-      } catch {
-        console.warn('Error formatting axis tick label with C# delegate')
-        console.log(settings.yAxisFormatter)
-        return defaultFormatter(d)
-      }
-    }
-    return settings.xAxisFormatter(d, i)
+  type DotNetDelegate = { invokeMethodAsync(method: string, ...args: unknown[]): string }
+  type xTickFormatter = (d: Date, i: number) => string;
+
+  // Find best-suited formatter and send request if blazor formatter found
+  let formatTick: xTickFormatter;
+  if (!settings.xAxisFormatter) formatTick = defaultFormatter;
+  else if (typeof settings.xAxisFormatter === 'function') {
+    formatTick = settings.xAxisFormatter;
+  } else {
+    // In this case, it might be a JS Delegate wrapper object from the .NET solution side. Blazor Server only supports asynchronous C# invocation.
+    // Nevertheless, ensure to have a fallback to handle interop failures
+    tryXAxisFromBlazor = true;
+    formatTick = defaultFormatter;
+  }
+  // Await request promises; below, the renderer chooses between
+  // xLabels or the formatTick function based on availability
+  let xLabels: string[] | null;
+  try {
+    xLabels = tryXAxisFromBlazor ? await Promise.all(
+        ticks.map((d, i) =>
+            (settings.xAxisFormatter as unknown as DotNetDelegate)
+                .invokeMethodAsync('executeDelegate', d.toISOString(), i)
+        )) : null;
+  } catch (e) {
+    console.warn("Failed to invoke formatter from Blazor", e)
+    xLabels = null;
   }
 
   const tickSel = scrollG
@@ -156,7 +188,11 @@ export function renderAxes(config: AxesConfig): void {
     .attr('dy', '0.71em')
     .attr('y', 9)
     .attr('text-anchor', 'middle')
-    .text((d, i) => formatTick(d, i))
+    .text(
+        !xLabels
+            ? (d, i) => formatTick(d, i)
+            : (_, i) => xLabels[i]
+    )
 
   const merged = enterG.merge(tickSel)
   merged.select('text').text((d, i) => formatTick(d, i))
@@ -186,6 +222,36 @@ export function renderAxes(config: AxesConfig): void {
   // ---- Y Axes (one rail per axis in layout) ----
   const showNames = layout.length >= 2
 
+  // Resolve y-axis tick labels up-front, mirroring the x-axis above: a plain JS function is
+  // called inline during render (sync), but a C# delegate wrapper from .NET (Blazor Server)
+  // only supports asynchronous invocation, so its labels must be awaited here — the per-axis
+  // .each() render below is synchronous and cannot await.
+  const tryYAxisFromBlazor =
+    settings.yAxisFormatter !== null && typeof settings.yAxisFormatter !== 'function'
+
+  // One label array per axis id, aligned with that axis's tick positions. Stays null when no
+  // Blazor delegate is in play or the interop call failed (fall back to the default formatter).
+  let yLabelsByAxis: Map<string, string[]> | null = null
+  if (tryYAxisFromBlazor) {
+    const yDelegate = settings.yAxisFormatter as unknown as DotNetDelegate
+    try {
+      const entries = await Promise.all(
+        layout.map(async (axis): Promise<[string, string[]]> => {
+          const yScale = yScales.get(axis.id)
+          const yTicks = yScale ? yScale.ticks() : []
+          const labels = await Promise.all(
+            yTicks.map((d, i) => yDelegate.invokeMethodAsync('executeDelegate', d, i))
+          )
+          return [axis.id, labels]
+        })
+      )
+      yLabelsByAxis = new Map(entries)
+    } catch (e) {
+      console.warn('Failed to invoke formatter from Blazor', e)
+      yLabelsByAxis = null
+    }
+  }
+
   // Data-join over axis groups so removed axes' chrome is cleaned up automatically.
   const axisGroups = g
     .selectAll<SVGGElement, AxisLayout>('.lc-y-axis')
@@ -207,19 +273,16 @@ export function renderAxes(config: AxesConfig): void {
     if (!yScale) return
 
     const gen = axis.position === 'right' ? d3.axisRight(yScale) : d3.axisLeft(yScale)
-    if (settings.yAxisFormatter !== null) {
-      gen.tickFormat((d, i) => {
-        if (typeof settings.yAxisFormatter !== 'function') {
-          try {
-            return (settings.yAxisFormatter as unknown as DotNetDelegate).invokeMethod('executeDelegate', d as number, i)
-          } catch {
-            console.warn('Error formatting axis tick label with C# delegate')
-            console.log(settings.yAxisFormatter)
-            return String(d)
-          }
-        }
-        return settings.yAxisFormatter(d as number, i)
-      })
+    const yAxisFormatter = settings.yAxisFormatter
+    if (yAxisFormatter !== null) {
+      if (typeof yAxisFormatter === 'function') {
+        gen.tickFormat((d, i) => yAxisFormatter(d as number, i))
+      } else {
+        // C# delegate: use the labels resolved above, indexed by tick position. If the interop
+        // call fails (no labels for this axis), fall back to the scale's default formatter.
+        const yLabels = yLabelsByAxis?.get(axis.id)
+        if (yLabels) gen.tickFormat((_, i) => yLabels[i])
+      }
     } else if (axis.scaleType === 'log') {
       gen.ticks(5, d3.format('.2~s'))
     }
