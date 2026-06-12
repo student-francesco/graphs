@@ -1,9 +1,18 @@
-import { prepareStep, Trigger, type ChartModule } from '../engine/index.ts'
+import {
+  prepareStep,
+  renderStep,
+  Trigger,
+  type ChartModule,
+  type ModuleRuntime,
+} from '../engine/index.ts'
 import { EASING_MAP } from '../d3-maps.ts'
 import type { AnimationMode } from '../types.ts'
 import {
   AnimationCtx,
+  D3Ctx,
+  Scales,
   Settings,
+  VisibleSeries,
   type AnimationCtxValue,
   type AnySelection,
   type GeomRole,
@@ -12,8 +21,9 @@ import {
 } from './tokens.ts'
 
 /**
- * Resolves the per-pass animation context every renderer consumes. The tween
- * policy table (extracted verbatim from the monolith's per-renderer branches):
+ * Resolves the per-pass animation context every renderer consumes, and owns the
+ * transition-mode scroll choreography. The tween policy table (extracted
+ * verbatim from the monolith's per-renderer branches):
  *
  * |            | path d                | dots cx/cy | labels x/y | x-ticks | grid  |
  * | none       | snap                  | snap       | snap       | snap    | snap  |
@@ -21,14 +31,31 @@ import {
  * | morph      | tween (exit+display)  | tween      | tween      | tween   | tween |
  * | transition | snap (exit+display)   | snap       | tween      | snap    | snap  |
  *
- * The transition-mode scroll container choreography (pre-positioning, exit
- * reshifting via the data-lc-exit-shift markers, animation back to the origin)
- * is layered on by this module's scroll steps when they land — geometry modules
- * already mark their exits and need no change.
+ * Transition mode: scrollPre (phase 'pre') pre-positions the scroll container at
+ * scrollStartX BEFORE any content renders — elements paint at their FINAL
+ * coordinates and never appear unshifted; scrollPost (phase 'post') reshifts
+ * every element marked data-lc-exiting by the scroll delta (so exiters keep
+ * their visual position when the container moves) and animates the container
+ * back to the origin. Renderers never read or write the container transform.
  */
 export function animationModule(): ChartModule {
+  // Mirrors the monolith's construction-time init: renders within the first
+  // animation window use the easeExpOut interrupt easing.
+  let lastRenderAt = Date.now()
+  let prevXScale: ((d: Date) => number) | null = null
+  let scrollStartX = 0
+  let scrollDelta = 0
+  let rtRef: ModuleRuntime | null = null
+
   return {
     id: 'animation',
+    defaults: {
+      animationDuration: 750,
+      easingType: 'easeCubicInOut',
+      setDataAnimation: 'drawOn',
+      updateDataAnimation: 'morph',
+      appendAnimation: 'none',
+    },
 
     prepare: [
       prepareStep({
@@ -42,7 +69,7 @@ export function animationModule(): ChartModule {
           a.duration === b.duration &&
           a.ease === b.ease &&
           a.fadeEnters === b.fadeEnters,
-        run: ({ trigger, settings }): AnimationCtxValue => {
+        run: ({ trigger, settings }, stepCtx): AnimationCtxValue => {
           const mode: AnimationMode =
             trigger.kind === 'setData'
               ? settings.setDataAnimation
@@ -52,11 +79,115 @@ export function animationModule(): ChartModule {
                   ? settings.appendAnimation
                   : 'none'
           const duration = mode !== 'none' ? settings.animationDuration : 0
-          const ease = EASING_MAP[settings.easingType]
+          // A re-render landing mid-animation switches to a decelerating ease so
+          // the visual interruption stays smooth.
+          const animatingStill = lastRenderAt + duration > stepCtx.now
+          const ease = animatingStill ? EASING_MAP.easeExpOut : EASING_MAP[settings.easingType]
           return buildCtx(mode, duration, ease, settings.animationDuration > 0)
         },
       }),
     ],
+
+    render: [
+      renderStep({
+        id: 'animation.scrollPre',
+        reads: { anim: AnimationCtx, ctx: D3Ctx, visible: VisibleSeries, scales: Scales },
+        phase: 'pre',
+        order: 0,
+        alwaysRun: true,
+        run: ({ anim, ctx, visible, scales }) => {
+          scrollStartX = 0
+          scrollDelta = 0
+          if (anim.mode !== 'transition' || anim.duration <= 0) return
+
+          const scroll = ctx.scrollG
+          scroll.interrupt()
+          const raw = scroll.attr('transform') || ''
+          const m = /translate\(\s*(-?[\d.e]+)/.exec(raw)
+          const currentX = m ? parseFloat(m[1]!) : 0
+
+          if (prevXScale) {
+            let refDate: Date | undefined
+            for (const s of visible.values()) {
+              if (s.raw.length > 0) {
+                refDate = s.raw[0]!.date
+                break
+              }
+            }
+            if (refDate) {
+              scrollStartX = prevXScale(refDate) - scales.x(refDate) + currentX
+            }
+          }
+          scrollDelta = currentX - scrollStartX
+
+          scroll.attr(
+            'transform',
+            Math.abs(scrollStartX) > 0.5 ? `translate(${scrollStartX}, 0)` : 'translate(0, 0)',
+          )
+        },
+      }),
+
+      renderStep({
+        id: 'animation.scrollPost',
+        reads: { anim: AnimationCtx, ctx: D3Ctx, scales: Scales },
+        phase: 'post',
+        alwaysRun: true,
+        run: ({ anim, ctx, scales }, stepCtx) => {
+          const scroll = ctx.scrollG
+
+          if (anim.mode === 'transition' && anim.duration > 0) {
+            // Reshift exiting elements (still fading from this or earlier passes)
+            // so they don't jump when the container is repositioned. Position
+            // only — their fade transitions keep running.
+            if (Math.abs(scrollDelta) > 0.5) {
+              const delta = scrollDelta
+              scroll.selectAll<Element, unknown>('[data-lc-exiting]').each(function () {
+                applyReshift(
+                  this,
+                  (this as Element & { __lcReshift?: ReshiftSpec }).__lcReshift,
+                  delta,
+                )
+              })
+            }
+            if (Math.abs(scrollStartX) > 0.5) {
+              scroll
+                .transition()
+                .duration(anim.duration)
+                .ease(anim.ease)
+                .attr('transform', 'translate(0, 0)')
+            } else {
+              scroll.attr('transform', 'translate(0, 0)')
+            }
+          } else {
+            // Reset any lingering scroll transform (resize, settings change, …).
+            scroll.interrupt().attr('transform', 'translate(0, 0)')
+          }
+
+          prevXScale = scales.x
+          lastRenderAt = stepCtx.now
+          // Keep a small number of exit points per series so the left-edge blur
+          // is not disturbed; takes effect on the next data-driven join.
+          rtRef?.command('series.trimExitPoints', 4)
+        },
+      }),
+    ],
+
+    mount(rt) {
+      rtRef = rt
+    },
+  }
+}
+
+function applyReshift(el: Element, spec: ReshiftSpec | undefined, delta: number): void {
+  if (!spec) return
+  if (spec.kind === 'attr-x') {
+    const current = parseFloat(el.getAttribute(spec.attr) ?? '0')
+    el.setAttribute(spec.attr, String(current + delta))
+  } else {
+    const t = el.getAttribute('transform') ?? 'translate(0,0)'
+    const m = /translate\(\s*(-?[\d.e]+)/.exec(t)
+    const x = m ? parseFloat(m[1]!) : 0
+    el.setAttribute('transform', `translate(${x + delta}, ${spec.fixedY})`)
   }
 }
 

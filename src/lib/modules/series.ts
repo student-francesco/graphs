@@ -263,6 +263,16 @@ export function seriesModule(): ChartModule {
         }
         if (touched) store.set({ series, nextPaletteIndex: current.nextPaletteIndex })
       })
+      // In-place trim with no store bump: matches the monolith's silent
+      // post-render splice — the shrunken list takes effect on the next
+      // data-driven join. Array identity is preserved so memo caches stay valid.
+      rt.provideCommand('series.trimExitPoints', (keep: number) => {
+        for (const slice of store.get().series.values()) {
+          if (slice.pendingExitPoints.length > keep) {
+            slice.pendingExitPoints.splice(0, slice.pendingExitPoints.length - keep)
+          }
+        }
+      })
       rt.provideCommand('series.associate', (seriesId: string, axisId: string) => {
         const current = store.get()
         const series = new Map(current.series)
