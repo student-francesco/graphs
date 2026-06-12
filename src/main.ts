@@ -1,5 +1,4 @@
 import { createLineChart } from './lib/index.ts'
-import type { LineChartHandle } from './lib/index.ts'
 import { generateSeries } from './harness/data.ts'
 import { createHarness } from './harness/state.ts'
 import { initToolbar } from './harness/toolbar.ts'
@@ -12,15 +11,8 @@ import { initAnnotationsTab } from './harness/annotations-tab.ts'
 import { initSnapshotTab } from './harness/snapshot-tab.ts'
 import { initModulesTab } from './harness/modules-tab.ts'
 
-// ---------------------------------------------------------------------------
-// Implementation toggle: ?impl=v2 serves the module-engine chart while it is
-// built out alongside the monolith (strangler migration). The monolith stays
-// the default until full parity.
-// ---------------------------------------------------------------------------
-
-const useV2 = new URLSearchParams(window.location.search).get('impl') === 'v2'
-
-const CHART_SETTINGS = {
+// Mirrors what Blazor does after OnAfterRenderAsync.
+const chart = createLineChart('chart-container', {
   curveType: 'monotoneX',
   lineColor: '#4f46e5',
   dotRadius: 4,
@@ -28,25 +20,9 @@ const CHART_SETTINGS = {
   animationDuration: 1000,
   appendAnimation: 'transition',
   maxDataPoints: 60,
-} as const
+})
 
-let chart: LineChartHandle
-let impl: 'monolith' | 'modules' = 'monolith'
-
-if (useV2) {
-  try {
-    const { createLineChartV2 } = await import('./lib/charts/line.ts')
-    chart = createLineChartV2('chart-container', CHART_SETTINGS)
-    impl = 'modules'
-  } catch (e) {
-    console.warn('v2 engine not available yet — falling back to the monolith', e)
-    chart = createLineChart('chart-container', CHART_SETTINGS)
-  }
-} else {
-  chart = createLineChart('chart-container', CHART_SETTINGS)
-}
-
-const harness = createHarness(chart, impl)
+const harness = createHarness(chart, 'modules')
 
 initToolbar(harness)
 initLineTab(harness)

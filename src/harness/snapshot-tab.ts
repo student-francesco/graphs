@@ -10,8 +10,8 @@ export function initSnapshotTab(h: Harness, annotations: AnnotationsTabApi): voi
     const snap = chart.getSnapshot()
     snapshotJson.value = JSON.stringify(snap, null, 2)
     setLog(
-      `getSnapshot() — ${snap.series.length} series, ${snap.axes.length} axes, ` +
-        `${snap.annotations.length} annotations`,
+      `getSnapshot() — v${snap.version}: ${snap.modules.series.series.length} series, ` +
+        `${snap.modules.axes.length} axes, ${snap.modules.annotations.length} annotations`,
     )
   })
 
@@ -26,8 +26,9 @@ export function initSnapshotTab(h: Harness, annotations: AnnotationsTabApi): voi
       chart.restoreSnapshot(snap)
       annotations.syncAnnoAxisOptions()
       setLog(
-        `restoreSnapshot(…) — ${snap.series?.length ?? 0} series, ${snap.axes?.length ?? 0} axes, ` +
-          `${snap.annotations?.length ?? 0} annotations`,
+        `restoreSnapshot(…) — ${snap.modules?.series?.series?.length ?? 0} series, ` +
+          `${snap.modules?.axes?.length ?? 0} axes, ` +
+          `${snap.modules?.annotations?.length ?? 0} annotations`,
       )
     } catch (e) {
       setLog(`Snapshot: ${(e as Error).message}`)

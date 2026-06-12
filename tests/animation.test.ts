@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { genSeries, mountChart } from './helpers.ts'
+import { genSeries, mountChart, seriesSlices } from './helpers.ts'
 
 const DURATION = 60
 
@@ -144,6 +144,6 @@ describe('append + maxDataPoints in transition mode', () => {
     expect(Math.abs(parseTranslateX($('.lc-scroll-container')!.getAttribute('transform')))).toBeLessThan(0.01)
 
     // data stays capped at 10 regardless of lingering exit-point dots
-    expect(chart.getSnapshot().series[0]!.data).toHaveLength(10)
+    expect(seriesSlices(chart)[0]!.data).toHaveLength(10)
   })
 })

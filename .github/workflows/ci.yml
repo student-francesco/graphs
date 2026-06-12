@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Module isolation guard
+        run: node scripts/check-module-imports.mjs
+      - name: Build library (tsc + vite)
+        run: npm run build:lib
+      - name: Tests
+        run: npm test
+      - name: Bundle size guard
+        run: |
+          SIZE=$(gzip -c dist/lib/graphs.es.js | wc -c)
+          echo "graphs.es.js gzip size: ${SIZE} bytes"
+          # 0.3.0 baseline ~56 kB gzip (ES) — fail at +10%
+          LIMIT=62000
+          if [ "$SIZE" -gt "$LIMIT" ]; then
+            echo "::error::Bundle grew past ${LIMIT} bytes gzip — check for accidental dependencies"
+            exit 1
+          fi

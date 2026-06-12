@@ -106,6 +106,27 @@ export function makeDelegate(impl?: (value: unknown, index: number) => string): 
   }
 }
 
+/** v2 snapshot slice access (format: { version: 2, modules: {…} }). */
+export function snapshotModules(chart: LineChartHandle): Record<string, unknown> {
+  const snap = (chart as unknown as { getSnapshot(): { modules: Record<string, unknown> } }).getSnapshot()
+  return snap.modules
+}
+
+export function zoomTransform(chart: LineChartHandle): { k: number; x: number; y: number } {
+  return (snapshotModules(chart)['zoom'] as { transform: { k: number; x: number; y: number } })
+    .transform
+}
+
+export function seriesSlices(
+  chart: LineChartHandle,
+): Array<{ id: string; axisId: string; data: Array<{ date: string; value: number }> }> {
+  return (
+    snapshotModules(chart)['series'] as {
+      series: Array<{ id: string; axisId: string; data: Array<{ date: string; value: number }> }>
+    }
+  ).series
+}
+
 export function makeFailingDelegate(): MockDelegate {
   const calls: Array<{ method: string; args: unknown[] }> = []
   return {

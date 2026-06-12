@@ -60,10 +60,9 @@ describe('.NET delegate wrappers (Blazor Server)', () => {
     }
   })
 
-  // FIXME(monolith bug): the merged-selection text pass overwrites the Blazor-resolved
-  // labels with the default formatter (axes.ts — merged.select('text').text(formatTick)).
-  // The module rewrite fixes this; flip `.fails` to a plain `it` when the axes module lands.
-  it.fails('renders the delegate-resolved labels on x ticks', async () => {
+  // Fixed by the module rewrite: labels come from the resolved model for ALL
+  // ticks (the monolith overwrote them with the default formatter).
+  it('renders the delegate-resolved labels on x ticks', async () => {
     const delegate = makeDelegate()
     const { chart, container } = mountChart({ xAxisFormatter: asXFormatter(delegate) })
     chart.setData(genSeries(10))
@@ -90,10 +89,9 @@ describe('.NET delegate wrappers (Blazor Server)', () => {
     for (const t of texts) expect(t).toMatch(/^Y\d+:/)
   })
 
-  // FIXME(monolith bug): labels are resolved for yScale.ticks() (default count) but the
-  // axis renders gen.ticks(axisYTickCount) — when counts differ, labels mis-index. The
-  // module rewrite resolves labels for the ticks actually rendered. Flip when fixed.
-  it.fails('y tick labels correspond to the rendered tick values', async () => {
+  // Fixed by the module rewrite: labels are resolved for exactly the tick
+  // values the rail renders (the monolith mis-indexed when counts differed).
+  it('y tick labels correspond to the rendered tick values', async () => {
     const delegate = makeDelegate((value) => `V=${String(value)}`)
     const { chart, container } = mountChart({ yAxisFormatter: asYFormatter(delegate) })
     chart.setData(genSeries(10))

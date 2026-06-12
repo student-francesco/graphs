@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { genSeries, mountChart } from './helpers.ts'
+import { genSeries, mountChart, zoomTransform } from './helpers.ts'
 
 function wheel(target: Element, deltaY: number): void {
   target.dispatchEvent(
@@ -21,8 +21,7 @@ describe('wheel zoom', () => {
 
     wheel(svg(), -120)
 
-    const snap = chart.getSnapshot()
-    expect(snap.zoom.transform.k).toBeGreaterThan(1)
+    expect(zoomTransform(chart).k).toBeGreaterThan(1)
     expect(container.querySelector('.lc-line')!.getAttribute('d')).not.toBe(dBefore)
   })
 
@@ -30,7 +29,7 @@ describe('wheel zoom', () => {
     const { chart, svg } = mountChart({ zoomEnabled: false })
     chart.setData(genSeries(20))
     wheel(svg(), -120)
-    expect(chart.getSnapshot().zoom.transform.k).toBe(1)
+    expect(zoomTransform(chart).k).toBe(1)
   })
 
   it('zoomEnabled can be toggled at runtime without rebinding', () => {
@@ -38,24 +37,21 @@ describe('wheel zoom', () => {
     chart.setData(genSeries(20))
     chart.updateSettings({ zoomEnabled: false })
     wheel(svg(), -120)
-    expect(chart.getSnapshot().zoom.transform.k).toBe(1)
+    expect(zoomTransform(chart).k).toBe(1)
     chart.updateSettings({ zoomEnabled: true })
     wheel(svg(), -120)
-    expect(chart.getSnapshot().zoom.transform.k).toBeGreaterThan(1)
+    expect(zoomTransform(chart).k).toBeGreaterThan(1)
   })
 
   it('resetZoom returns the transform to identity (instant at duration 0)', () => {
     const { chart, svg } = mountChart()
     chart.setData(genSeries(20))
     wheel(svg(), -120)
-    expect(chart.getSnapshot().zoom.transform.k).toBeGreaterThan(1)
+    expect(zoomTransform(chart).k).toBeGreaterThan(1)
 
     chart.resetZoom()
 
-    const t = chart.getSnapshot().zoom.transform
-    expect(t.k).toBe(1)
-    expect(t.x).toBe(0)
-    expect(t.y).toBe(0)
+    expect(zoomTransform(chart)).toEqual({ k: 1, x: 0, y: 0 })
   })
 
   it('resetZoom is a no-op when not zoomed', () => {
@@ -70,16 +66,16 @@ describe('wheel zoom', () => {
     const { chart, svg } = mountChart()
     chart.setData(genSeries(20))
     wheel(svg(), -120)
-    expect(chart.getSnapshot().zoom.transform.k).toBeGreaterThan(1)
+    expect(zoomTransform(chart).k).toBeGreaterThan(1)
     svg().dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
-    expect(chart.getSnapshot().zoom.transform.k).toBe(1)
+    expect(zoomTransform(chart).k).toBe(1)
   })
 
   it('zoom math respects zoomScaleExtent updates', () => {
     const { chart, svg } = mountChart({ zoomScaleExtent: [1, 2] })
     chart.setData(genSeries(20))
     for (let i = 0; i < 10; i++) wheel(svg(), -120)
-    expect(chart.getSnapshot().zoom.transform.k).toBeLessThanOrEqual(2)
+    expect(zoomTransform(chart).k).toBeLessThanOrEqual(2)
   })
 
   it('clearData drops zoom state', () => {
@@ -87,6 +83,6 @@ describe('wheel zoom', () => {
     chart.setData(genSeries(20))
     wheel(svg(), -120)
     chart.clearData()
-    expect(chart.getSnapshot().zoom.transform.k).toBe(1)
+    expect(zoomTransform(chart).k).toBe(1)
   })
 })

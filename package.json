@@ -1,6 +1,6 @@
 {
   "name": "@inficon/graphs",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "type": "module",
   "main": "dist/lib/graphs.umd.js",
   "module": "dist/lib/graphs.es.js",
@@ -21,7 +21,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "build:lib": "tsc --noEmit && vite build --config vite.config.lib.ts",
-    "build:nuget": "npm run build:lib && nuget.exe pack graphs.nuspec && nuget.exe push Graphs.0.2.1.nupkg -Source InficonNugets -ApiKey AzureDevOps -NonInteractive",
+    "build:nuget": "npm run build:lib && nuget.exe pack graphs.nuspec && node -e \"const v=require('./package.json').version;require('child_process').execSync('nuget.exe push Graphs.'+v+'.nupkg -Source InficonNugets -ApiKey AzureDevOps -NonInteractive',{stdio:'inherit'})\"",
     "build:npm": "npm run build:lib && npm publish",
     "preview": "vite preview",
     "test": "vitest run",

@@ -58,12 +58,16 @@ export function LINE_MODULES(container: HTMLElement): ChartModule[] {
 }
 
 /**
- * Module-engine line chart (v2). Becomes the implementation behind
- * createLineChart at full parity. The handle cast is honest only for the
- * already-implemented surface — unimplemented methods are absent until their
- * modules land.
+ * Factory for Blazor JS interop — assembles the line chart from its module list
+ * and returns the handle with own-property bound methods (unambiguous
+ * IJSObjectReference compatibility).
+ *
+ * Blazor usage:
+ *   var module = await JS.InvokeAsync<IJSObjectReference>("import", "./graphs.es.js");
+ *   var chart  = await module.InvokeAsync<IJSObjectReference>("createLineChart", divId, settings);
+ *   await chart.InvokeVoidAsync("setData", data);
  */
-export function createLineChartV2(
+export function createLineChart(
   divId: string,
   settings?: Partial<ChartSettings>,
 ): LineChartHandle {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createLineChartV2 } from '../src/lib/charts/line.ts'
+import { createLineChart } from '../src/lib/index.ts'
 import type { ChartSettings, LineChartHandle } from '../src/lib/index.ts'
 import { genSeries } from './helpers.ts'
 
@@ -22,7 +22,7 @@ function mountV2(settings?: Partial<ChartSettings>): {
   const container = document.createElement('div')
   container.id = `v2-chart-${++v2Counter}`
   document.body.appendChild(container)
-  const chart = createLineChartV2(container.id, { animationDuration: 0, ...settings })
+  const chart = createLineChart(container.id, { animationDuration: 0, ...settings })
   cleanups.push(() => {
     try {
       chart.destroy()
@@ -63,7 +63,7 @@ describe('v2 scaffold', () => {
   })
 
   it('throws for an unknown container id', () => {
-    expect(() => createLineChartV2('v2-no-such-element')).toThrow(/no element with id/)
+    expect(() => createLineChart('v2-no-such-element')).toThrow(/no element with id/)
   })
 
   it('reports its registered modules', () => {

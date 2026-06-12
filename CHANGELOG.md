@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-06-12
+
+### Changed
+- **Architecture rewritten as a module graph.** Every capability — including the chart context, series data, scales, axes, animation, zoom, annotations, tooltip, export, and snapshots — is now a self-contained module with a data-preparation step and a render step. Modules declare typed token dependencies; a computation plan resolves the module tree into cacheable execution waves (async Blazor formatter interop overlaps with other preparation work). The line chart is just a module list (`src/lib/charts/line.ts`); future chart types reuse the same context/tooltip/decimation/snapshot/export modules with different geometry modules.
+- `createLineChart(divId, settings)` and the full `LineChartHandle` method surface are unchanged — Blazor consumers keep working without code changes. Artifact names (`graphs.es.js` / `graphs.umd.js`), the UMD global `GraphsLib`, and NuGet packaging are unchanged.
+- Bundle size: 49.9 kB gzip UMD (was 42.5 kB) — the cost of the engine indirection and per-module separation.
+
+### Added
+- Diagnostic handle methods: `getRegisteredModules()` and `explainPlan()` (dumps the computation plan).
+- Automated test suite (Vitest + jsdom): 200+ tests covering the public API surface, DOM structure, animation choreography, zoom/brush, snapshots, and Blazor delegate interop (including rejection fallbacks).
+- Dev harness: split into per-tab modules with a new Modules status tab.
+
+### Fixed
+- Blazor x-axis tick labels from .NET delegate formatters now actually display — they were previously overwritten by the default formatter on every render.
+- Blazor y-axis tick labels are resolved for exactly the tick values rendered — they previously mis-indexed when the resolved and rendered tick counts differed.
+- Tick label resolution is awaited before the render commits — eliminates a race where exiting ticks could miss the transition scroll reshift under Blazor formatters.
+- The loading skeleton is dismissed by any data ingress (it previously stayed on top of points added via `appendDataPoint`).
+
+### BREAKING
+- `getSnapshot()` / `restoreSnapshot()` use snapshot format version 2: `{ version: 2, modules: { settings, axes, series, annotations, zoom } }`, where each entry is captured/restored by the module that owns the state. Version-1 snapshots (0.2.x) are rejected with an error — re-capture after upgrading.
+- The `LineChart` class is no longer exported; use the `createLineChart` factory (the documented Blazor entry point, unchanged).
+
+---
+
 ## [0.2.1] - 2026-06-12
 
 ### Changed

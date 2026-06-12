@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { genSeries, mountChart, settleTransitions } from './helpers.ts'
+import { genSeries, mountChart, seriesSlices, settleTransitions } from './helpers.ts'
 
 describe('updateData overlap branches', () => {
   it('sufficient overlap keeps the existing path element (morph branch)', () => {
@@ -81,16 +81,17 @@ describe('append + rolling window', () => {
     await settleTransitions()
     // 5 live + 3 trimmed exit points still joined for visual continuity
     expect($all('.lc-dot')).toHaveLength(8)
-    const snap = chart.getSnapshot()
-    expect(snap.series.find(s => s.id === 'default')!.data).toHaveLength(5)
+    expect(seriesSlices(chart).find(s => s.id === 'default')!.data).toHaveLength(5)
   })
 
-  it('append on an empty default series renders without dismissing skeleton rules', () => {
+  it('append on an empty default series dismisses the skeleton', () => {
+    // BEHAVIOR CHANGE vs the monolith (deliberate): the skeleton is purely
+    // HasData-driven, so any data ingress dismisses it. The monolith kept the
+    // shimmer overlay on top of appended points.
     const { chart, $all, $ } = mountChart()
     chart.appendDataPoint({ date: '2024-01-01T00:00:00.000Z', value: 1 })
-    // single-series append path does NOT dismiss the skeleton (only setData/setSeriesData do)
     expect($all('.lc-dot')).toHaveLength(1)
-    expect($('.lc-skeleton')).not.toBeNull()
+    expect($('.lc-skeleton')).toBeNull()
   })
 
   it('rejects invalid dates loudly', () => {

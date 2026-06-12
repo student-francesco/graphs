@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { genSeries, mountChart } from './helpers.ts'
+import { genSeries, mountChart, seriesSlices, snapshotModules } from './helpers.ts'
+
+/**
+ * Snapshot format v2 (BREAKING vs 0.2.x, per plan — no v1 reader):
+ * { version: 2, modules: { settings, axes, series, annotations, zoom } }.
+ * Each module captures and restores its own slice.
+ */
+
+interface SnapshotV2 {
+  version: 2
+  modules: Record<string, unknown>
+}
+
+function getSnapshot(chart: ReturnType<typeof mountChart>['chart']): SnapshotV2 {
+  return (chart as unknown as { getSnapshot(): SnapshotV2 }).getSnapshot()
+}
 
 /** Full-feature scenario used for the golden snapshot and the round-trip invariant. */
 function buildScenario() {
@@ -17,39 +32,53 @@ function buildScenario() {
   return mounted
 }
 
-describe('getSnapshot', () => {
+describe('getSnapshot (v2)', () => {
   it('captures the full scenario shape (golden)', () => {
     const { chart } = buildScenario()
-    expect(chart.getSnapshot()).toMatchSnapshot()
+    expect(getSnapshot(chart)).toMatchSnapshot()
   })
 
-  it('strips function-valued formatters from settings', () => {
+  it('is versioned with per-module slices', () => {
+    const { chart } = buildScenario()
+    const snap = getSnapshot(chart)
+    expect(snap.version).toBe(2)
+    expect(Object.keys(snap.modules).sort()).toEqual([
+      'annotations',
+      'axes',
+      'series',
+      'settings',
+      'zoom',
+    ])
+  })
+
+  it('strips function-valued formatters from the settings slice', () => {
     const { chart } = mountChart({ xAxisFormatter: () => 'tick' })
     chart.setData(genSeries(3))
-    const snap = chart.getSnapshot()
-    expect('xAxisFormatter' in snap.settings).toBe(false)
-    expect('yAxisFormatter' in snap.settings).toBe(false)
+    const settings = snapshotModules(chart)['settings'] as Record<string, unknown>
+    expect('xAxisFormatter' in settings).toBe(false)
+    expect('yAxisFormatter' in settings).toBe(false)
   })
 
   it('serializes dates as ISO strings', () => {
     const { chart } = mountChart()
     chart.setData(genSeries(2))
-    const snap = chart.getSnapshot()
-    expect(snap.series[0]!.data[0]!.date).toBe('2024-01-01T00:00:00.000Z')
+    expect(seriesSlices(chart)[0]!.data[0]!.date).toBe('2024-01-01T00:00:00.000Z')
   })
 })
 
-describe('restoreSnapshot', () => {
+describe('restoreSnapshot (v2)', () => {
   it('round-trips: restore(getSnapshot()) yields a deep-equal snapshot', () => {
     const { chart } = buildScenario()
-    const snap = chart.getSnapshot()
+    const snap = getSnapshot(chart)
     chart.restoreSnapshot(JSON.parse(JSON.stringify(snap)))
-    expect(chart.getSnapshot()).toEqual(JSON.parse(JSON.stringify(snap)))
+    expect(JSON.parse(JSON.stringify(getSnapshot(chart)))).toEqual(
+      JSON.parse(JSON.stringify(snap)),
+    )
   })
 
   it('rebuilds the DOM to match the restored state', () => {
     const source = buildScenario()
-    const snap = source.chart.getSnapshot()
+    const snap = getSnapshot(source.chart)
 
     const target = mountChart()
     target.chart.restoreSnapshot(JSON.parse(JSON.stringify(snap)))
@@ -63,7 +92,7 @@ describe('restoreSnapshot', () => {
 
   it('restores into the skeleton state when the snapshot has no data', () => {
     const empty = mountChart()
-    const snap = empty.chart.getSnapshot()
+    const snap = getSnapshot(empty.chart)
 
     const target = mountChart()
     target.chart.setData(genSeries(5))
@@ -80,22 +109,30 @@ describe('restoreSnapshot', () => {
     svg().dispatchEvent(
       new WheelEvent('wheel', { deltaY: -120, clientX: 300, clientY: 150, bubbles: true }),
     )
-    const snap = chart.getSnapshot()
-    expect(snap.zoom.transform.k).toBeGreaterThan(1)
+    const snap = getSnapshot(chart)
+    const zoom = snap.modules['zoom'] as { transform: { k: number } }
+    expect(zoom.transform.k).toBeGreaterThan(1)
 
     const target = mountChart()
     target.chart.restoreSnapshot(JSON.parse(JSON.stringify(snap)))
-    expect(target.chart.getSnapshot().zoom.transform.k).toBeCloseTo(snap.zoom.transform.k)
+    const restored = snapshotModules(target.chart)['zoom'] as { transform: { k: number } }
+    expect(restored.transform.k).toBeCloseTo(zoom.transform.k)
   })
 
-  it('drops snapshot series bound to axes missing from the snapshot onto the first axis', () => {
+  it('drops snapshot series bound to missing axes onto the first axis', () => {
     const { chart } = mountChart()
     chart.setData(genSeries(3))
-    const snap = JSON.parse(JSON.stringify(chart.getSnapshot())) as ReturnType<
-      typeof chart.getSnapshot
-    >
-    snap.series[0]!.axisId = 'ghost-axis'
-    expect(() => chart.restoreSnapshot(snap)).not.toThrow()
-    expect(chart.getSnapshot().series[0]!.axisId).toBe('default')
+    const snap = JSON.parse(JSON.stringify(getSnapshot(chart))) as SnapshotV2
+    const series = snap.modules['series'] as { series: Array<{ axisId: string }> }
+    series.series[0]!.axisId = 'ghost-axis'
+    expect(() => chart.restoreSnapshot(snap as never)).not.toThrow()
+    expect(seriesSlices(chart)[0]!.axisId).toBe('default')
+  })
+
+  it('rejects pre-v2 snapshots with a clear error', () => {
+    const { chart } = mountChart()
+    expect(() =>
+      chart.restoreSnapshot({ settings: {}, axes: [], series: [] } as never),
+    ).toThrow(/version/)
   })
 })

@@ -258,20 +258,32 @@ export interface ZoomSnapshot {
   yDomainOverrides: Array<{ axisId: string; range: [number, number] }>
 }
 
-/**
- * Complete chart state in a JSON-safe shape. Captured by `getSnapshot()` and consumed by
- * `restoreSnapshot()`. Designed for Blazor JS interop — no Date instances, no functions.
- *
- * `xAxisFormatter` and `yAxisFormatter` are silently dropped from `settings`.
- */
-export interface ChartSnapshot {
-  settings: SerializableChartSettings
-  axes: AxisSnapshot[]
+/** The series module's snapshot slice: every series plus the palette cursor. */
+export interface SeriesModuleSnapshot {
   series: SeriesSnapshot[]
-  annotations: AnnotationSnapshot[]
-  zoom: ZoomSnapshot
   /** Palette cursor — preserves colour continuity for series added after restore. */
   nextPaletteIndex: number
+}
+
+/**
+ * Complete chart state in a JSON-safe shape — format version 2 (breaking change
+ * in 0.3.0; version-1 snapshots are rejected). Captured by `getSnapshot()` and
+ * consumed by `restoreSnapshot()`. Designed for Blazor JS interop — no Date
+ * instances, no functions.
+ *
+ * Each entry under `modules` is captured and restored by the module that owns
+ * that state; charts composed from different module sets carry exactly their
+ * own slices. `xAxisFormatter` / `yAxisFormatter` are dropped from `settings`.
+ */
+export interface ChartSnapshot {
+  version: 2
+  modules: {
+    settings: SerializableChartSettings
+    axes: AxisSnapshot[]
+    series: SeriesModuleSnapshot
+    annotations: AnnotationSnapshot[]
+    zoom: ZoomSnapshot
+  } & Record<string, unknown>
 }
 
 /** The object Blazor holds as IJSObjectReference */
@@ -364,17 +376,18 @@ export interface LineChartHandle {
 
   // --- Snapshot API ---
   /**
-   * Capture the chart's full mutable state as a JSON-safe snapshot.
-   * Includes settings (minus the two function formatters), every axis, every series with
-   * its data as ISO 8601 strings, every annotation, the current pan/zoom transform with
-   * any brush-set domain overrides, and the palette cursor.
+   * Capture the chart's full mutable state as a JSON-safe snapshot (format
+   * version 2: per-module slices). Includes settings (minus the two function
+   * formatters), every axis, every series with its data as ISO 8601 strings,
+   * every annotation, the pan/zoom transform with any brush-set domain
+   * overrides, and the palette cursor.
    */
   getSnapshot(): ChartSnapshot
   /**
-   * Replace the chart's state with the snapshot. Existing series, axes, annotations and
-   * zoom state are torn down first, then everything is rebuilt and a single re-render runs.
-   * `xAxisFormatter` / `yAxisFormatter` are not touched — whatever the host set at
-   * construction stays in place.
+   * Replace the chart's state with the snapshot, slice by slice, then run a
+   * single re-render. Pre-version-2 snapshots are rejected with an error.
+   * `xAxisFormatter` / `yAxisFormatter` are not touched — whatever the host set
+   * at construction stays in place.
    */
   restoreSnapshot(snapshot: ChartSnapshot): void
 }
