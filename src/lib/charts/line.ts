@@ -19,6 +19,7 @@ import { snapshotModule } from '../modules/snapshot.ts'
 import { KNOWN_PROVIDERS } from '../modules/tokens.ts'
 import { tooltipModule } from '../modules/tooltip.ts'
 import { valueLabelsModule } from '../modules/value-labels.ts'
+import { zoomModule } from '../modules/zoom.ts'
 import type { ChartSettings, LineChartHandle } from '../types.ts'
 
 /**
@@ -49,6 +50,7 @@ export function LINE_MODULES(container: HTMLElement): ChartModule[] {
     annotationsModule(),
     tooltipModule(),
     exportModule(),
+    zoomModule(),
     snapshotModule(),
     skeletonModule(),
     labelsModule(),

@@ -190,6 +190,7 @@ describe('v2 snapshot (version 2)', () => {
       'axes',
       'series',
       'settings',
+      'zoom',
     ])
     const settings = snap.modules['settings'] as Record<string, unknown>
     expect('xAxisFormatter' in settings).toBe(false)

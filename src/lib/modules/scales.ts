@@ -5,6 +5,7 @@ import {
   Layout,
   Scales,
   Settings,
+  ViewTransform,
   XDomainValues,
   YDomainValues,
   type AxisLayoutEntry,
@@ -36,10 +37,11 @@ export function scalesModule(): ChartModule {
           settings: Settings,
           xValues: XDomainValues,
           yValues: YDomainValues,
+          view: ViewTransform,
         },
         provides: Scales,
         equals: (a, b) => a.desc === b.desc,
-        run: ({ layout, axisLayouts, settings, xValues, yValues }): ScaleBundle => {
+        run: ({ layout, axisLayouts, settings, xValues, yValues, view }): ScaleBundle => {
           const { innerWidth, innerHeight } = layout
 
           const allDates = xValues.flat()
@@ -47,7 +49,26 @@ export function scalesModule(): ChartModule {
           // Pre-data fallback — renderers gate on HasData, but the scale must exist.
           const xDomain: [Date, Date] =
             d0 !== undefined && d1 !== undefined ? [d0, d1] : [new Date(0), new Date(86_400_000)]
-          const x = d3.scaleTime().domain(xDomain).range([0, innerWidth])
+          const xAuto = d3.scaleTime().domain(xDomain).range([0, innerWidth])
+
+          // Layer 1: brush-set domain overrides replace the auto-computed extent.
+          const xBase =
+            view.xDomainOverride !== null
+              ? (xAuto.copy().domain(view.xDomainOverride as [Date, Date]) as d3.ScaleTime<
+                  number,
+                  number
+                >)
+              : xAuto
+
+          // Layer 2: the d3.zoom transform stacks on top via rescale. Once any
+          // override exists, pan/zoom unlocks on BOTH axes regardless of zoomMode
+          // so the user can drag the focused view around freely.
+          const hasOverride = view.xDomainOverride !== null || view.yDomainOverrides.size > 0
+          const zoomsX = hasOverride || settings.zoomMode === 'x' || settings.zoomMode === 'xy'
+          const zoomsY = hasOverride || settings.zoomMode === 'y' || settings.zoomMode === 'xy'
+          const transform = d3.zoomIdentity.translate(view.x, view.y).scale(view.k)
+          const transformed = transform.k !== 1 || transform.x !== 0 || transform.y !== 0
+          const x = zoomsX && transformed ? transform.rescaleX(xBase) : xBase
 
           const valuesByAxis = new Map<string, number[]>()
           for (const contribution of yValues) {
@@ -60,12 +81,20 @@ export function scalesModule(): ChartModule {
 
           const y = new Map<string, YScale>()
           const yTicks = new Map<string, readonly number[]>()
+          const xd = x.domain()
           const descParts: string[] = [
-            `x:${xDomain[0].getTime()}..${xDomain[1].getTime()}/${innerWidth}`,
+            `x:${xd[0]!.getTime()}..${xd[1]!.getTime()}/${innerWidth}`,
           ]
 
           for (const axis of axisLayouts) {
-            const scale = buildAxisYScale(axis, valuesByAxis.get(axis.id) ?? [], innerHeight)
+            const auto = buildAxisYScale(axis, valuesByAxis.get(axis.id) ?? [], innerHeight)
+            const override = view.yDomainOverrides.get(axis.id)
+            const base =
+              override !== undefined
+                ? (auto.copy().domain(override as [number, number]) as YScale)
+                : auto
+            // rescaleY returns type-preserving copies (log stays log).
+            const scale = zoomsY && transformed ? (transform.rescaleY(base) as YScale) : base
             const count = axis.yTickCount ?? Math.max(2, Math.floor(innerHeight / 40))
             y.set(axis.id, scale)
             yTicks.set(axis.id, scale.ticks(count))

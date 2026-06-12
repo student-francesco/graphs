@@ -163,6 +163,21 @@ export interface ScaleBundle {
 
 export const Scales: Token<ScaleBundle> = token('scales.bundle')
 
+/**
+ * The two-layer viewport state owned by the zoom module: brush-set domain
+ * overrides replace the auto extent; the d3.zoom transform stacks on top via
+ * rescale. Plain diffable data — never a d3.ZoomTransform instance.
+ */
+export interface ViewTransformState {
+  readonly k: number
+  readonly x: number
+  readonly y: number
+  readonly xDomainOverride: readonly [Date, Date] | null
+  readonly yDomainOverrides: ReadonlyMap<string, readonly [number, number]>
+}
+
+export const ViewTransform: Token<ViewTransformState> = token('zoom.viewTransform')
+
 /** Dates folded into the x auto-extent (series raw data; future: vertical annotations). */
 export const XDomainValues: CollectToken<readonly Date[]> = collectToken('scales.xDomain')
 
@@ -240,4 +255,5 @@ export const KNOWN_PROVIDERS: ReadonlyMap<string, string> = new Map([
   [AxisLayouts.id, 'axes-store'],
   [Scales.id, 'scales'],
   [AnimationCtx.id, 'animation'],
+  [ViewTransform.id, 'zoom'],
 ])
