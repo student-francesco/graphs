@@ -211,5 +211,24 @@ export function axesStoreModule(): ChartModule {
         },
       }
     },
+
+    state(rt) {
+      const store = rt.store(AxesStore)
+      return {
+        key: 'axes',
+        capture: () => Array.from(store.get().axes.values()).map(a => ({ ...a })),
+        restore: value => {
+          const axes = new Map<string, AxisDef>()
+          for (const raw of (value as AxisDef[]) ?? []) {
+            axes.set(raw.id, { ...raw })
+          }
+          // Chart invariant: at least one axis must exist.
+          if (axes.size === 0) {
+            axes.set(DEFAULT_AXIS_ID, defaultAxis(DEFAULT_AXIS_ID))
+          }
+          store.set({ axes })
+        },
+      }
+    },
   }
 }

@@ -108,7 +108,7 @@ export function storeSpec<S>(spec: StoreSpec<S>): StoreSpec {
 export interface StateSlice {
   readonly key: string
   capture(): unknown
-  /** Restore runs inside a batch; the engine triggers a single pass afterwards. */
+  /** Restore runs inside a batch; the caller triggers a single pass afterwards. */
   restore(value: unknown): void
 }
 
@@ -148,5 +148,6 @@ export interface ChartModule {
   mount?(rt: ModuleRuntime): (() => void) | void
   /** Public handle methods contributed by this module. Name collisions throw. */
   api?(rt: ModuleRuntime): Record<string, (...args: never[]) => unknown>
-  readonly state?: StateSlice
+  /** Snapshot participation: the slice this module captures and restores. */
+  state?(rt: ModuleRuntime): StateSlice
 }

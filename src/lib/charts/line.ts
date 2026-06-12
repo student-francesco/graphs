@@ -1,10 +1,12 @@
 import { ChartEngine, type ChartModule } from '../engine/index.ts'
 import { animationModule } from '../modules/animation.ts'
+import { annotationsModule } from '../modules/annotations.ts'
 import { axesRenderModule } from '../modules/axes-render.ts'
 import { axesStoreModule } from '../modules/axes-store.ts'
 import { contextModule } from '../modules/context.ts'
 import { decimationModule } from '../modules/decimation.ts'
 import { dotsModule } from '../modules/dots.ts'
+import { exportModule } from '../modules/export.ts'
 import { geometryLineModule } from '../modules/geometry-line.ts'
 import { gridModule } from '../modules/grid.ts'
 import { labelsModule } from '../modules/labels.ts'
@@ -13,7 +15,9 @@ import { seriesModule } from '../modules/series.ts'
 import { settingsModule } from '../modules/settings.ts'
 import { skeletonModule } from '../modules/skeleton.ts'
 import { smoothingModule } from '../modules/smoothing.ts'
+import { snapshotModule } from '../modules/snapshot.ts'
 import { KNOWN_PROVIDERS } from '../modules/tokens.ts'
+import { tooltipModule } from '../modules/tooltip.ts'
 import { valueLabelsModule } from '../modules/value-labels.ts'
 import type { ChartSettings, LineChartHandle } from '../types.ts'
 
@@ -42,6 +46,10 @@ export function LINE_MODULES(container: HTMLElement): ChartModule[] {
     geometryLineModule(),
     dotsModule(),
     valueLabelsModule(),
+    annotationsModule(),
+    tooltipModule(),
+    exportModule(),
+    snapshotModule(),
     skeletonModule(),
     labelsModule(),
   ]

@@ -41,5 +41,26 @@ export function settingsModule(): ChartModule {
         },
       }
     },
+
+    state(rt) {
+      const settings = rt.store(Settings)
+      return {
+        key: 'settings',
+        capture: () => {
+          // Function-valued fields cannot survive JSON.
+          const { xAxisFormatter: _xf, yAxisFormatter: _yf, ...serializable } = settings.get()
+          return serializable
+        },
+        restore: value => {
+          settings.update(current => ({
+            ...current,
+            ...(value as Partial<ChartSettings>),
+            // Formatters aren't carried in snapshots — keep the live ones.
+            xAxisFormatter: current.xAxisFormatter,
+            yAxisFormatter: current.yAxisFormatter,
+          }))
+        },
+      }
+    },
   }
 }

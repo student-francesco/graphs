@@ -282,6 +282,66 @@ export function seriesModule(): ChartModule {
     api(rt) {
       return buildSeriesApi(rt)
     },
+
+    state(rt) {
+      const store = rt.store(SeriesStore)
+      return {
+        key: 'series',
+        capture: () => ({
+          series: Array.from(store.get().series.values()).map(s => ({
+            id: s.id,
+            axisId: s.axisId,
+            data: s.points.map(p => ({ date: p.date.toISOString(), value: p.value })),
+            color: s.color,
+            lineWeight: s.lineWeight,
+            dotRadius: s.dotRadius,
+            curveType: s.curveType,
+            smoothing: s.smoothing,
+            decimation: s.decimation,
+            showLabels: s.showLabels,
+            labelFormat: s.labelFormat,
+            dotBorderColor: s.dotBorderColor,
+          })),
+          nextPaletteIndex: store.get().nextPaletteIndex,
+        }),
+        restore: value => {
+          const raw = value as {
+            series?: Array<{
+              id: string
+              axisId: string
+              data: RawDataPoint[]
+            } & Partial<SeriesSlice>>
+            nextPaletteIndex?: number
+          }
+          const series = new Map<string, SeriesSlice>()
+          for (const s of raw?.series ?? []) {
+            const axisId =
+              (rt.command('axes.resolveId', s.axisId) as string | undefined) ?? DEFAULT_AXIS_ID
+            const slice = emptySlice(s.id, axisId)
+            slice.points = s.data.map(parseRaw)
+            slice.dataRev = 1
+            slice.color = s.color
+            slice.lineWeight = s.lineWeight
+            slice.dotRadius = s.dotRadius
+            slice.curveType = s.curveType
+            slice.smoothing = s.smoothing
+            slice.decimation = s.decimation
+            slice.showLabels = s.showLabels
+            slice.labelFormat = s.labelFormat
+            slice.dotBorderColor = s.dotBorderColor
+            series.set(s.id, slice)
+          }
+          // Chart invariant: the 'default' series is assumed by setData(array).
+          if (!series.has('default')) {
+            const fallback =
+              (rt.command('axes.resolveId', DEFAULT_AXIS_ID) as string | undefined) ??
+              DEFAULT_AXIS_ID
+            series.set('default', emptySlice('default', fallback))
+          }
+          store.set({ series, nextPaletteIndex: raw?.nextPaletteIndex ?? 0 })
+        },
+      }
+    },
   }
 }
 

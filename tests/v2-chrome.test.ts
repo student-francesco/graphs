@@ -83,6 +83,10 @@ describe('v2 scaffold', () => {
       'line',
       'dots',
       'value-labels',
+      'annotations',
+      'tooltip',
+      'export',
+      'snapshot',
       'skeleton',
       'labels',
     ])
