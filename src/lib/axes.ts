@@ -56,6 +56,9 @@ export interface AxesConfig {
  * @param config - Complete axis rendering configuration including scales, layout, containers, and animation settings
  * @returns A promise that resolves when all axis rendering is complete
  */
+/** Duration (ms) for fading in newly entering tick elements, independent of the main animation mode. */
+const ENTER_FADE_MS = 200
+
 export async function renderAxes(config: AxesConfig): Promise<void> {
   const {
     g, chartAreaG, scrollG,
@@ -64,6 +67,9 @@ export async function renderAxes(config: AxesConfig): Promise<void> {
     settings, mode, duration, ease,
   } = config
   const animate = mode !== 'none'
+  // Whether entering elements should fade in. Disabled when animationDuration is 0 so that
+  // charts configured for fully instant rendering stay instant on resize too.
+  const fadeEnters = settings.animationDuration > 0
   // In transition mode the container scroll drives all horizontal motion — elements
   // must snap to their final positions, so they move as one unit with the container.
   const animateScrollContent = animate && mode !== 'transition'
@@ -174,7 +180,7 @@ export async function renderAxes(config: AxesConfig): Promise<void> {
     .selectAll<SVGGElement, Date>('.lc-x-tick')
     .data(ticks, d => d.getTime())
 
-  // Enter: new ticks placed at their final x position immediately
+  // Enter: new ticks placed at their final x position, start invisible so they fade in
   const enterG = tickSel
     .enter()
     .append('g')
@@ -214,6 +220,13 @@ export async function renderAxes(config: AxesConfig): Promise<void> {
       .attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
   } else {
     merged.attr('transform', d => `translate(${xScale(d)}, ${innerHeight})`)
+  }
+
+  // Fade in newly entering ticks — fires on every render including resize (mode 'none').
+  if (fadeEnters) {
+    enterG.style('opacity', 0)
+      .transition().duration(ENTER_FADE_MS)
+      .style('opacity', null)
   }
 
   // Rename class immediately so future joins never see these elements again,
@@ -298,9 +311,22 @@ export async function renderAxes(config: AxesConfig): Promise<void> {
     }
 
     if (animate && duration > 0) {
+      // D3's axis transition already fades entering ticks in (opacity epsilon → 1).
       sel.transition().duration(duration).call(gen)
     } else {
+      // Snapshot existing tick values before the generator runs so we can identify
+      // newly inserted ticks and fade them in manually.
+      const prevTickValues = new Set(
+        sel.selectAll<SVGGElement, d3.NumberValue>('.tick').data().map(d => +d)
+      )
       sel.call(gen)
+      if (fadeEnters) {
+        sel.selectAll<SVGGElement, d3.NumberValue>('.tick')
+          .filter(d => !prevTickValues.has(+d))
+          .style('opacity', 0)
+          .transition().duration(ENTER_FADE_MS)
+          .style('opacity', null)
+      }
     }
 
     // Axis colour paints only the lettering (tick labels + name) and the associated
