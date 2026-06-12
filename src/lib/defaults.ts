@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: ChartSettings = {
   showGrid: true,
   gridColor: '#e5e7eb',
   gridOpacity: 0.7,
+  yTickCount: null,
 
   showTooltip: true,
   tooltipDateFormat: '%b %d, %Y',
@@ -31,6 +32,7 @@ export const DEFAULT_SETTINGS: ChartSettings = {
 
   xAxisFormatter: null,
   yAxisFormatter: null,
+  xTickCount: null,
 
   ariaLabel: 'Line chart',
 

@@ -85,6 +85,11 @@ export interface AxisSettings {
   gridColor?: string
   /** Grid line opacity for this axis; undefined cascades to ChartSettings.gridOpacity. */
   gridOpacity?: number
+  /**
+   * Hint for the number of y-axis tick marks. Passed directly to D3's axis.ticks().
+   * undefined cascades to ChartSettings.yTickCount.
+   */
+  yTickCount?: number | null
 }
 
 /** Common visual styling for annotation lines. Unset fields fall back to chart-wide annotation defaults. */
@@ -129,6 +134,12 @@ export interface ChartSettings extends SeriesSettings, AxisSettings {
   showGrid: boolean
   gridColor: string
   gridOpacity: number
+  /**
+   * Hint for the number of y-axis tick marks. Passed to D3's axis.ticks().
+   * null (default) auto-computes from the available chart height (≈ innerHeight / 40),
+   * which avoids label overlap on small charts. Set an explicit number to override.
+   */
+  yTickCount: number | null
 
   // ── Chart-scope defaults not inherited from the bases ─────────────────────
   /** Chart-wide default series colour. SeriesSettings.color is the per-series override. */
@@ -152,6 +163,12 @@ export interface ChartSettings extends SeriesSettings, AxisSettings {
   margins: ChartMargins
   xAxisFormatter: ((value: Date, index: number) => string) | null
   yAxisFormatter: ((value: number, index: number) => string) | null
+  /**
+   * Hint for the number of x-axis tick marks. Passed to D3's axis.ticks().
+   * null (default) auto-computes from the available chart width (≈ innerWidth / 80),
+   * which avoids label overlap on small charts. Set an explicit number to override.
+   */
+  xTickCount: number | null
   ariaLabel: string
 
   // ── updateData delta thresholds ────────────────────────────────────────────
@@ -191,6 +208,7 @@ export interface AxisSnapshot {
   showGrid: boolean | undefined
   gridColor: string | undefined
   gridOpacity: number | undefined
+  yTickCount: number | null | undefined
 }
 
 export interface SeriesSnapshot {

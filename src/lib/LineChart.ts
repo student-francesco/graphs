@@ -103,6 +103,7 @@ interface AxisState {
   showGrid: boolean | undefined            // undefined = cascade to settings.showGrid
   gridColor: string | undefined            // undefined = cascade to settings.gridColor
   gridOpacity: number | undefined          // undefined = cascade to settings.gridOpacity
+  yTickCount: number | null | undefined    // undefined = cascade to settings.yTickCount
 }
 
 const DEFAULT_AXIS_ID = 'default'
@@ -216,6 +217,7 @@ export class LineChart implements LineChartHandle {
       showGrid: undefined,
       gridColor: undefined,
       gridOpacity: undefined,
+      yTickCount: undefined,
     })
 
     // Initialize the default series — display properties left undefined so they
@@ -850,6 +852,7 @@ export class LineChart implements LineChartHandle {
         if ('showGrid' in options) existing.showGrid = options.showGrid
         if ('gridColor' in options) existing.gridColor = options.gridColor
         if ('gridOpacity' in options) existing.gridOpacity = options.gridOpacity
+        if ('yTickCount' in options) existing.yTickCount = options.yTickCount
       }
     } else {
       this.axes.set(name, {
@@ -862,6 +865,7 @@ export class LineChart implements LineChartHandle {
         showGrid: options?.showGrid,
         gridColor: options?.gridColor,
         gridOpacity: options?.gridOpacity,
+        yTickCount: options?.yTickCount,
       })
     }
     if (this.hasData()) this.render('none')
@@ -912,6 +916,7 @@ export class LineChart implements LineChartHandle {
     if ('showGrid' in settings)     axis.showGrid = settings.showGrid
     if ('gridColor' in settings)    axis.gridColor = settings.gridColor
     if ('gridOpacity' in settings)  axis.gridOpacity = settings.gridOpacity
+    if ('yTickCount' in settings)   axis.yTickCount = settings.yTickCount
     if (this.hasData()) this.render('none')
   }
 
@@ -957,6 +962,7 @@ export class LineChart implements LineChartHandle {
       showGrid: a.showGrid ?? this.settings.showGrid,
       gridColor: a.gridColor ?? this.settings.gridColor,
       gridOpacity: a.gridOpacity ?? this.settings.gridOpacity,
+      yTickCount: a.yTickCount !== undefined ? a.yTickCount : this.settings.yTickCount,
     })
     const list = Array.from(this.axes.values())
     if (list.length === 1) return [resolve(list[0], 'left', 0)]
@@ -1980,6 +1986,7 @@ export class LineChart implements LineChartHandle {
       showGrid: a.showGrid,
       gridColor: a.gridColor,
       gridOpacity: a.gridOpacity,
+      yTickCount: a.yTickCount,
     }))
 
     const series = Array.from(this.series.values()).map(s => ({
@@ -2074,6 +2081,7 @@ export class LineChart implements LineChartHandle {
         showGrid: a.showGrid,
         gridColor: a.gridColor,
         gridOpacity: a.gridOpacity,
+        yTickCount: a.yTickCount,
       })
     }
     // Chart invariant: at least one axis must exist.
@@ -2088,6 +2096,7 @@ export class LineChart implements LineChartHandle {
         showGrid: undefined,
         gridColor: undefined,
         gridOpacity: undefined,
+        yTickCount: undefined,
       })
     }
 

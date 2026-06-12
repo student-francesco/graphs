@@ -537,6 +537,20 @@ document.getElementById('btn-load-exp')!.addEventListener('click', () => {
   setLog('setData(exponential data — good for log scale)')
 })
 
+const yTickCountInput = document.getElementById('y-tick-count') as HTMLInputElement
+yTickCountInput.addEventListener('change', () => {
+  const yTickCount = yTickCountInput.value === '' ? null : parseInt(yTickCountInput.value, 10)
+  chart.updateSettings({ yTickCount })
+  setLog(`updateSettings({ yTickCount: ${yTickCount} })`)
+})
+
+const xTickCountInput = document.getElementById('x-tick-count') as HTMLInputElement
+xTickCountInput.addEventListener('change', () => {
+  const xTickCount = xTickCountInput.value === '' ? null : parseInt(xTickCountInput.value, 10)
+  chart.updateSettings({ xTickCount })
+  setLog(`updateSettings({ xTickCount: ${xTickCount} })`)
+})
+
 // ---------------------------------------------------------------------------
 // Smoothing controls
 // ---------------------------------------------------------------------------

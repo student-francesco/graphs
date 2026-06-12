@@ -15,6 +15,8 @@ export interface AxisLayout {
   showGrid: boolean
   gridColor: string
   gridOpacity: number
+  /** Resolved tick count hint. null = auto-compute from innerHeight (≈ innerHeight / 40). */
+  yTickCount: number | null
 }
 
 export interface AxesConfig {
@@ -69,6 +71,10 @@ export async function renderAxes(config: AxesConfig): Promise<void> {
   // Primary y-scale drives the horizontal grid (avoids ambiguous grid lines under disparate scales).
   const primaryYScale = yScales.get(layout[0]!.id)!
 
+  // Resolve tick counts: null → auto-compute from available space.
+  const resolvedYTickCount = layout[0]!.yTickCount ?? Math.max(2, Math.floor(innerHeight / 40))
+  const resolvedXTickCount = settings.xTickCount ?? Math.max(2, Math.floor(innerWidth / 80))
+
   // ---- Grid ----
   // Grid lives here because its lines must fall exactly on axis tick positions — using the same scale instances guarantees that.
   // The grid is rendered through repurposed D3 axis elements without scale texts.
@@ -79,7 +85,7 @@ export async function renderAxes(config: AxesConfig): Promise<void> {
       ? scrollG.insert('g', ':first-child').attr('class', 'lc-grid-y')
       : yGrid
 
-    const yGridAxis = d3.axisLeft(primaryYScale).tickSize(-innerWidth).tickFormat(() => '')
+    const yGridAxis = d3.axisLeft(primaryYScale).ticks(resolvedYTickCount).tickSize(-innerWidth).tickFormat(() => '')
     const applyYGrid = (sel: d3.Selection<SVGGElement, unknown, null, undefined>) => {
       sel.call(yGridAxis)
       sel.select('.domain').remove()
@@ -100,7 +106,7 @@ export async function renderAxes(config: AxesConfig): Promise<void> {
       ? scrollG.insert('g', ':first-child').attr('class', 'lc-grid-x')
       : xGrid
 
-    const xGridAxis = d3.axisBottom(xScale).tickSize(-innerHeight).tickFormat(() => '')
+    const xGridAxis = d3.axisBottom(xScale).ticks(resolvedXTickCount).tickSize(-innerHeight).tickFormat(() => '')
     const applyXGrid = (sel: d3.Selection<SVGGElement, unknown, null, undefined>) => {
       sel.attr('transform', `translate(0,${innerHeight})`)
       sel.call(xGridAxis)
@@ -134,7 +140,7 @@ export async function renderAxes(config: AxesConfig): Promise<void> {
 
   // ---- X Axis ticks (data-join — managed like dots, inside scroll container) ----
   let tryXAxisFromBlazor = false;
-  const ticks = xScale.ticks()
+  const ticks = xScale.ticks(resolvedXTickCount)
   const defaultFormatter = xScale.tickFormat()
   type DotNetDelegate = { invokeMethodAsync(method: string, ...args: unknown[]): string }
   type xTickFormatter = (d: Date, i: number) => string;
@@ -272,19 +278,23 @@ export async function renderAxes(config: AxesConfig): Promise<void> {
     const yScale = yScales.get(axis.id)
     if (!yScale) return
 
+    const axisYTickCount = axis.yTickCount ?? Math.max(2, Math.floor(innerHeight / 40))
     const gen = axis.position === 'right' ? d3.axisRight(yScale) : d3.axisLeft(yScale)
     const yAxisFormatter = settings.yAxisFormatter
     if (yAxisFormatter !== null) {
       if (typeof yAxisFormatter === 'function') {
-        gen.tickFormat((d, i) => yAxisFormatter(d as number, i))
+        gen.ticks(axisYTickCount).tickFormat((d, i) => yAxisFormatter(d as number, i))
       } else {
         // C# delegate: use the labels resolved above, indexed by tick position. If the interop
         // call fails (no labels for this axis), fall back to the scale's default formatter.
         const yLabels = yLabelsByAxis?.get(axis.id)
-        if (yLabels) gen.tickFormat((_, i) => yLabels[i])
+        if (yLabels) gen.ticks(axisYTickCount).tickFormat((_, i) => yLabels[i])
+        else gen.ticks(axisYTickCount)
       }
     } else if (axis.scaleType === 'log') {
-      gen.ticks(5, d3.format('.2~s'))
+      gen.ticks(axisYTickCount, d3.format('.2~s'))
+    } else {
+      gen.ticks(axisYTickCount)
     }
 
     if (animate && duration > 0) {
