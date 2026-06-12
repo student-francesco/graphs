@@ -1,0 +1,3 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`setData structure > renders a stable path d for fixed input (golden) 1`] = `"M0,220C42.5,197.59,85,175.17,127.5,154.56C170,133.95,212.5,113.47,255,96.33C297.5,79.18,340,63.49,382.5,51.71C425,39.92,467.5,32.77,510,25.61"`;
