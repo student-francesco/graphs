@@ -119,6 +119,13 @@ export interface ModuleRuntime {
   peekCollect<T>(tok: CollectToken<T>): readonly T[]
   requestRender(trigger?: TriggerInfo): void
   /**
+   * Named capability registry — the sanctioned way for one module to invoke
+   * another without importing it (e.g. clearData fires 'viewport.reset', which
+   * the zoom module registers). Unregistered commands are silent no-ops.
+   */
+  provideCommand(name: string, fn: (...args: never[]) => unknown): void
+  command<A extends unknown[]>(name: string, ...args: A): unknown
+  /**
    * Run any pending pass synchronously when possible (no async step in flight).
    * Public API methods call this so mutations render before they return, matching
    * the monolith's synchronous behavior.

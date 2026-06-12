@@ -31,6 +31,7 @@ export class ChartEngine {
   private readonly scheduler: Scheduler
   private readonly abort = new AbortController()
   private readonly disposers: Array<() => void> = []
+  private readonly commands = new Map<string, (...args: never[]) => unknown>()
   private destroyed = false
 
   constructor(modules: readonly ChartModule[], opts: EngineOptions = {}) {
@@ -91,6 +92,13 @@ export class ChartEngine {
         this.executor.peekCollect(tok.id) as readonly T[],
       requestRender: (trigger?: TriggerInfo) =>
         this.scheduler.request(trigger ?? { kind: 'mutation' }),
+      provideCommand: (name, fn) => {
+        if (this.commands.has(name)) {
+          throw new Error(`engine: command "${name}" registered twice`)
+        }
+        this.commands.set(name, fn)
+      },
+      command: (name, ...args) => this.commands.get(name)?.(...(args as unknown as never[])),
       flushSync: () => this.scheduler.flushSync(),
       layers: this.layers,
       modules: this.modules,
@@ -120,6 +128,12 @@ export class ChartEngine {
       }
     }
     api['destroy'] = () => this.destroy()
+    if (!('getRegisteredModules' in api)) {
+      api['getRegisteredModules'] = () => this.modules.map(m => m.id)
+    }
+    if (!('explainPlan' in api)) {
+      api['explainPlan'] = () => this.plan.explain()
+    }
     return api
   }
 

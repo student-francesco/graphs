@@ -28,9 +28,9 @@ export function initModulesTab(h: Harness): void {
   }
 
   btnPlan.addEventListener('click', () => {
-    const dbg = (window as { __chartPlan?: { explain(): string } }).__chartPlan
-    if (dbg) {
-      console.log(dbg.explain())
+    const maybePlan = h.chart as unknown as { explainPlan?: () => string }
+    if (typeof maybePlan.explainPlan === 'function') {
+      console.log(maybePlan.explainPlan())
       h.setLog('Computation plan dumped to the console.')
     } else {
       h.setLog('No computation plan — run with ?impl=v2.')
