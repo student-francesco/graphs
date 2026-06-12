@@ -72,7 +72,17 @@ describe('v2 scaffold', () => {
     expect(modular.getRegisteredModules()).toEqual([
       'context',
       'settings',
+      'axes-store',
       'series',
+      'smoothing',
+      'decimation',
+      'animation',
+      'scales',
+      'grid',
+      'axes-render',
+      'line',
+      'dots',
+      'value-labels',
       'skeleton',
       'labels',
     ])

@@ -1,5 +1,7 @@
 import {
   prepareStep,
+  renderStep,
+  shallowEquals,
   storeSpec,
   token,
   type ChartModule,
@@ -8,7 +10,16 @@ import {
   type Token,
 } from '../engine/index.ts'
 import type { CurveType, DataPoint, RawDataPoint, SeriesSettings } from '../types.ts'
-import { HasData, Settings } from './tokens.ts'
+import {
+  AxesDef,
+  HasData,
+  SmoothedSeries,
+  Settings,
+  VisibleSeries,
+  XDomainValues,
+  YDomainValues,
+  type VisibleSeriesEntry,
+} from './tokens.ts'
 
 /** Per-series state: parsed data plus sparse display overrides (undefined = cascade). */
 export interface SeriesSlice {
@@ -87,6 +98,11 @@ function emptySlice(id: string, axisId: string): SeriesSlice {
  * or pie chart would reuse.
  */
 export function seriesModule(): ChartModule {
+  // Entry identity stays stable while a series is unchanged, so map-level shallow
+  // diffs (and every downstream memo) stay quiet.
+  const visibleMemo = new Map<string, VisibleSeriesEntry>()
+  const prevRebirth = new Map<string, number>()
+
   return {
     id: 'series',
 
@@ -108,7 +124,160 @@ export function seriesModule(): ChartModule {
         run: ({ store }) =>
           Array.from(store.series.values()).some(s => s.points.length > 0),
       }),
+      prepareStep({
+        id: 'series.visible',
+        reads: { store: SeriesStore, settings: Settings, axes: AxesDef },
+        provides: VisibleSeries,
+        run: ({ store, settings, axes }): ReadonlyMap<string, VisibleSeriesEntry> => {
+          const axisColor = new Map(axes.map(a => [a.id, a.color]))
+          const out = new Map<string, VisibleSeriesEntry>()
+          for (const slice of store.series.values()) {
+            // Stroke/fill: axis colour wins when set, then the series colour,
+            // then the chart-wide line colour.
+            const entry: VisibleSeriesEntry = {
+              id: slice.id,
+              raw: slice.points,
+              dataRev: slice.dataRev,
+              rebirth: slice.rebirth,
+              exit: slice.pendingExitPoints,
+              resolved: {
+                axisId: slice.axisId,
+                color: axisColor.get(slice.axisId) ?? slice.color ?? settings.lineColor,
+                lineWeight: slice.lineWeight ?? settings.lineWeight,
+                dotRadius: slice.dotRadius ?? settings.dotRadius,
+                curveType: slice.curveType ?? settings.curveType,
+                smoothing: slice.smoothing ?? settings.smoothing,
+                decimation: slice.decimation ?? settings.decimation,
+                showLabels:
+                  slice.showLabels !== undefined ? slice.showLabels : settings.showLabels,
+                labelFormat:
+                  (slice.labelFormat !== undefined ? slice.labelFormat : settings.labelFormat) ??
+                  settings.tooltipValueFormat,
+                dotBorderColor:
+                  (slice.dotBorderColor !== undefined
+                    ? slice.dotBorderColor
+                    : settings.dotBorderColor) ??
+                  (settings.theme === 'dark' ? '#1a1815' : '#fff'),
+              },
+            }
+            const cached = visibleMemo.get(slice.id)
+            if (
+              cached &&
+              cached.raw === entry.raw &&
+              cached.dataRev === entry.dataRev &&
+              cached.rebirth === entry.rebirth &&
+              cached.exit === entry.exit &&
+              shallowEquals(cached.resolved, entry.resolved)
+            ) {
+              out.set(slice.id, cached)
+            } else {
+              visibleMemo.set(slice.id, entry)
+              out.set(slice.id, entry)
+            }
+          }
+          for (const id of visibleMemo.keys()) {
+            if (!out.has(id)) visibleMemo.delete(id)
+          }
+          return out
+        },
+      }),
+      prepareStep({
+        id: 'series.domains',
+        reads: { visible: VisibleSeries, smoothed: SmoothedSeries },
+        provides: token<{
+          dates: readonly Date[]
+          yByAxis: ReadonlyArray<{ axisId: string; values: readonly number[] }>
+        }>('series.domainValues'),
+        contributes: [
+          { to: XDomainValues, select: out => out.dates },
+          { to: YDomainValues, select: out => out.yByAxis },
+        ],
+        run: ({ visible, smoothed }) => {
+          const dates: Date[] = []
+          const byAxis = new Map<string, number[]>()
+          for (const s of visible.values()) {
+            // The x extent uses RAW dates; the y extent uses SMOOTHED values —
+            // smoothing affects the domain, decimation does not.
+            for (const p of s.raw) dates.push(p.date)
+            const values = byAxis.get(s.resolved.axisId) ?? []
+            for (const p of smoothed.get(s.id) ?? []) values.push(p.value)
+            byAxis.set(s.resolved.axisId, values)
+          }
+          return {
+            dates,
+            yByAxis: Array.from(byAxis, ([axisId, values]) => ({ axisId, values })),
+          }
+        },
+      }),
     ],
+
+    render: [
+      renderStep({
+        id: 'series.host',
+        reads: { visible: VisibleSeries, hasData: HasData },
+        layer: { name: 'series', z: 30, host: 'scroll' },
+        run: ({ visible, hasData }, ctx) => {
+          const data = hasData ? Array.from(visible.values()) : []
+          const groups = ctx
+            .layer!.selectAll<SVGGElement, VisibleSeriesEntry>('.lc-series')
+            .data(data, d => d.id)
+          groups.exit().remove()
+          const merged = groups
+            .enter()
+            .append('g')
+            .attr('class', 'lc-series')
+            .attr('data-id', d => d.id)
+            .merge(groups)
+          // Rebirth: clear this series' elements so renderers see isNew (drawOn).
+          merged.each(function (d) {
+            const prev = prevRebirth.get(d.id)
+            if (prev !== undefined && prev !== d.rebirth) {
+              const g = this as SVGGElement
+              for (const el of Array.from(
+                g.querySelectorAll('.lc-line,.lc-dot,.lc-dot-exiting'),
+              )) {
+                el.remove()
+              }
+            }
+            prevRebirth.set(d.id, d.rebirth)
+          })
+          for (const id of prevRebirth.keys()) {
+            if (!visible.has(id)) prevRebirth.delete(id)
+          }
+        },
+      }),
+    ],
+
+    mount(rt) {
+      const store = rt.store(SeriesStore)
+      // Cross-store effects invoked by the axes module — no flushSync here; the
+      // calling api method flushes once everything is consistent.
+      rt.provideCommand('series.migrateAxis', (removedAxisId: string, fallbackId: string) => {
+        const current = store.get()
+        const series = new Map(current.series)
+        let touched = false
+        for (const [id, slice] of series) {
+          if (slice.axisId !== removedAxisId) continue
+          series.set(id, { ...slice, axisId: fallbackId })
+          touched = true
+        }
+        if (touched) store.set({ series, nextPaletteIndex: current.nextPaletteIndex })
+      })
+      rt.provideCommand('series.associate', (seriesId: string, axisId: string) => {
+        const current = store.get()
+        const series = new Map(current.series)
+        const state = { nextPaletteIndex: current.nextPaletteIndex }
+        const existing = series.get(seriesId)
+        if (existing) {
+          series.set(seriesId, { ...existing, axisId })
+        } else {
+          const slice = emptySlice(seriesId, axisId)
+          slice.color = PALETTE[state.nextPaletteIndex++ % PALETTE.length]
+          series.set(seriesId, slice)
+        }
+        store.set({ series, nextPaletteIndex: state.nextPaletteIndex })
+      })
+    },
 
     api(rt) {
       return buildSeriesApi(rt)
@@ -135,11 +304,9 @@ function buildSeriesApi(rt: ModuleRuntime): Record<string, (...args: never[]) =>
 
   const cloneSlice = (s: SeriesSlice): SeriesSlice => ({ ...s })
 
-  const firstAxisIdOf = (series: Map<string, SeriesSlice>): string => {
-    // Until the axis store exists, series fall back to the default axis id.
-    void series
-    return DEFAULT_AXIS_ID
-  }
+  /** Unknown axis ids fall back to the first existing axis (axes-store command). */
+  const resolveAxisId = (requested: string): string =>
+    (rt.command('axes.resolveId', requested) as string | undefined) ?? DEFAULT_AXIS_ID
 
   /** Trim to settings.maxDataPoints; returns accumulated exit points. */
   const trimToMaxPoints = (slice: SeriesSlice): DataPoint[] => {
@@ -163,7 +330,7 @@ function buildSeriesApi(rt: ModuleRuntime): Record<string, (...args: never[]) =>
     }
     const color =
       seriesSettings?.color ?? PALETTE[state.nextPaletteIndex++ % PALETTE.length]
-    const slice = emptySlice(id, firstAxisIdOf(series))
+    const slice = emptySlice(id, resolveAxisId(seriesSettings?.axis ?? DEFAULT_AXIS_ID))
     slice.color = color
     slice.lineWeight = seriesSettings?.lineWeight
     slice.dotRadius = seriesSettings?.dotRadius
@@ -326,7 +493,7 @@ function buildSeriesApi(rt: ModuleRuntime): Record<string, (...args: never[]) =>
         if ('labelFormat' in partial) clone.labelFormat = partial.labelFormat
         if ('dotBorderColor' in partial) clone.dotBorderColor = partial.dotBorderColor
         if ('axis' in partial && partial.axis !== undefined) {
-          clone.axisId = (rt.command('axes.resolveId', partial.axis) as string) ?? clone.axisId
+          clone.axisId = resolveAxisId(partial.axis)
         }
         series.set(id, clone)
       }, { kind: 'mutation' })
