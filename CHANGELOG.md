@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2026-06-12
+
+### Changed
+- Axes fade in/out smoothly on update instead of snapping.
+
+### Fixed
+- Tick count for x and y axes now adjusts correctly when the chart is rendered at small sizes.
+
+---
+
 ## [0.2.0] - 2026-06-09
 
 ### Changed
