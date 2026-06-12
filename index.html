@@ -162,6 +162,7 @@
         <button class="tab-btn" data-tab="labels">Labels</button>
         <button class="tab-btn" data-tab="annotations">Annotations</button>
         <button class="tab-btn" data-tab="snapshot">Snapshot</button>
+        <button class="tab-btn" data-tab="modules">Modules</button>
       </div>
 
       <!-- Line tab: curve, smoothing, decimation, scale -->
@@ -466,6 +467,21 @@
           <button id="btn-snapshot-capture">Capture</button>
           <button id="btn-snapshot-restore">Restore</button>
           <button id="btn-snapshot-wipe" class="danger">Wipe chart</button>
+        </div>
+      </div>
+
+      <!-- Modules tab: implementation status of the strangler migration -->
+      <div class="tab-panel" id="tab-modules" role="tabpanel">
+        <div class="control-group" style="flex-direction:column;align-items:stretch;gap:6px">
+          <label>Implementation</label>
+          <span id="modules-impl" style="font-size:12px;color:#6b7280"></span>
+        </div>
+        <div class="control-group" style="flex-direction:column;align-items:stretch;gap:6px;flex:1;min-width:0">
+          <label>Registered modules</label>
+          <ul id="modules-list" style="margin:0;padding-left:18px;font-size:12px;columns:3"></ul>
+        </div>
+        <div class="control-group" style="flex-direction:column;align-items:stretch;gap:6px">
+          <button id="btn-dump-plan">Dump plan → console</button>
         </div>
       </div>
     </div>
