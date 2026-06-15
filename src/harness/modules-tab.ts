@@ -9,6 +9,7 @@ export function initModulesTab(h: Harness): void {
   const implEl = document.getElementById('modules-impl')!
   const listEl = document.getElementById('modules-list')!
   const btnPlan = document.getElementById('btn-dump-plan')!
+  const btnLogger = document.getElementById('btn-toggle-logger')!
 
   implEl.textContent = `module engine — ${h.impl}`
 
@@ -24,5 +25,15 @@ export function initModulesTab(h: Harness): void {
     const withPlan = h.chart as unknown as { explainPlan(): string }
     console.log(withPlan.explainPlan())
     h.setLog('Computation plan dumped to the console.')
+  })
+
+  let loggerOn = false
+  const withLogger = h.chart as unknown as { setLoggerEnabled(on: boolean): void }
+  btnLogger.addEventListener('click', () => {
+    loggerOn = !loggerOn
+    withLogger.setLoggerEnabled(loggerOn)
+    btnLogger.textContent = loggerOn ? 'Disable pass logger' : 'Enable pass logger'
+    btnLogger.classList.toggle('active', loggerOn)
+    h.setLog(`Pass logger ${loggerOn ? 'enabled' : 'disabled'}.`)
   })
 }

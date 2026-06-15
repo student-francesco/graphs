@@ -134,6 +134,9 @@ export class ChartEngine {
     if (!('explainPlan' in api)) {
       api['explainPlan'] = () => this.plan.explain()
     }
+    if (!('setLoggerEnabled' in api)) {
+      api['setLoggerEnabled'] = (enabled: boolean) => { this.logger.enabled = enabled }
+    }
     return api
   }
 
