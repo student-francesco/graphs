@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Grid no longer flashes a black full-width line across the top of the plot during animation. d3-axis emits a `.domain` spine that (because `tickSize()` also sets the outer tick size) is a full-width box; the removal of it now runs synchronously on the grid selection instead of inside the animated apply, where it was deferred to the transition's end.
+
 ## [0.3.0] - 2026-06-12
 
 ### Changed

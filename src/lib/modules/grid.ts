@@ -47,7 +47,6 @@ export function gridModule(): ChartModule {
             .tickFormat(() => '')
           const applyYGrid = (sel: d3.Selection<SVGGElement, unknown, null, undefined>): void => {
             sel.call(yGridAxis)
-            sel.select('.domain').remove()
             sel
               .selectAll('.tick line')
               .attr('stroke', primary.gridColor)
@@ -57,6 +56,11 @@ export function gridModule(): ChartModule {
           anim.position(yGridEl, 'scrolled', s =>
             applyYGrid(s as d3.Selection<SVGGElement, unknown, null, undefined>),
           )
+          // d3-axis emits a `.domain` spine — and because tickSize() sets tickSizeOuter too,
+          // it's a full-width box whose top edge reads as a black line across the plot. Remove
+          // it on the plain selection (not inside applyYGrid, where `sel` may be a transition
+          // that defers .remove() to its end and flashes the line during animation).
+          yGridEl.select('.domain').remove()
 
           const xGrid = g.select<SVGGElement>('.lc-grid-x')
           const xGridEl = xGrid.empty()
@@ -70,7 +74,6 @@ export function gridModule(): ChartModule {
           const applyXGrid = (sel: d3.Selection<SVGGElement, unknown, null, undefined>): void => {
             sel.attr('transform', `translate(0,${innerHeight})`)
             sel.call(xGridAxis)
-            sel.select('.domain').remove()
             sel
               .selectAll('.tick line')
               .attr('stroke', primary.gridColor)
@@ -80,6 +83,8 @@ export function gridModule(): ChartModule {
           anim.position(xGridEl, 'scrolled', s =>
             applyXGrid(s as d3.Selection<SVGGElement, unknown, null, undefined>),
           )
+          // Same as the y grid: drop the d3-axis `.domain` synchronously on the real selection.
+          xGridEl.select('.domain').remove()
         },
       }),
     ],
