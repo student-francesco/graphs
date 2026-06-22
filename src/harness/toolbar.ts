@@ -17,12 +17,12 @@ export function initToolbar(h: Harness): void {
   })
 
   document.getElementById('btn-append')!.addEventListener('click', () => {
+    const stepMs = h.intervalMs()
     let count = 0
     h.forEachLiveSeries((id, data) => {
       const last = data[data.length - 1]
       if (!last) return
-      const nextDate = new Date(last.date)
-      nextDate.setDate(nextDate.getDate() + 1)
+      const nextDate = new Date(new Date(last.date).getTime() + stepMs)
       const point: RawDataPoint = {
         date: nextDate.toISOString(),
         value: Math.max(1, parseFloat(last.value.toFixed(2)) + (Math.random() - 0.48) * 10),
@@ -31,7 +31,7 @@ export function initToolbar(h: Harness): void {
       chart.appendSeriesDataPoint(id, point)
       count++
     })
-    if (count > 0) setLog(`appendSeriesDataPoint(…) × ${count} series`)
+    if (count > 0) setLog(`appendSeriesDataPoint(…) × ${count} series (+${h.intervalLabel()})`)
   })
 
   let autoAppendTimer: ReturnType<typeof setInterval> | null = null
@@ -54,30 +54,31 @@ export function initToolbar(h: Harness): void {
   })
 
   document.getElementById('btn-append-batch')!.addEventListener('click', () => {
+    const stepMs = h.intervalMs()
     let count = 0
     h.forEachLiveSeries((id, data) => {
       const last = data[data.length - 1]
       if (!last) return
-      const nextDate = new Date(last.date)
-      nextDate.setDate(nextDate.getDate() + 1)
-      const batch = generateSeries(5, nextDate, parseFloat(last.value.toFixed(2)))
+      const nextDate = new Date(new Date(last.date).getTime() + stepMs)
+      const batch = generateSeries(5, nextDate, parseFloat(last.value.toFixed(2)), stepMs)
       data.push(...batch)
       chart.appendSeriesDataPoints(id, batch)
       count++
     })
-    if (count > 0) setLog(`appendSeriesDataPoints(…, 5) × ${count} series`)
+    if (count > 0) setLog(`appendSeriesDataPoints(…, 5) × ${count} series (+${h.intervalLabel()} steps)`)
   })
 
   document.getElementById('btn-update')!.addEventListener('click', () => {
+    const stepMs = h.intervalMs()
     let count = 0
     for (const [id, data] of h.seriesDataMap.entries()) {
       if (data.length === 0) continue
-      const shifted = slideWindow(data, 7)
+      const shifted = slideWindow(data, 7, stepMs)
       h.seriesDataMap.set(id, shifted)
       chart.updateSeriesData(id, shifted)
       count++
     }
-    if (count > 0) setLog(`updateSeriesData(…, window +7d) × ${count} series`)
+    if (count > 0) setLog(`updateSeriesData(…, window slide 7 × ${h.intervalLabel()}) × ${count} series`)
   })
 
   document.getElementById('btn-clear')!.addEventListener('click', () => {

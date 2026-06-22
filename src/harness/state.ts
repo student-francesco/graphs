@@ -23,6 +23,10 @@ export interface Harness {
   activeAxisId(): string
   /** Iterate every series with at least one point. */
   forEachLiveSeries(fn: (id: string, data: RawDataPoint[]) => void): void
+  /** Time (ms) added per append / window-slide step, from the global Interval control. */
+  intervalMs(): number
+  /** Human-readable form of the current interval, e.g. "1 days" — for the log line. */
+  intervalLabel(): string
 }
 
 /** Palette matching the one used by the library for visual consistency */
@@ -48,6 +52,17 @@ export function createHarness(chart: LineChartHandle, impl: Harness['impl']): Ha
       for (const [id, data] of seriesDataMap.entries()) {
         if (data.length > 0) fn(id, data)
       }
+    },
+    intervalMs: () => {
+      const amount = parseFloat((document.getElementById('interval-amount') as HTMLInputElement).value)
+      const unitMs = Number((document.getElementById('interval-unit') as HTMLSelectElement).value)
+      return Math.max(1, (Number.isFinite(amount) ? amount : 1) * unitMs)
+    },
+    intervalLabel: () => {
+      const amount = (document.getElementById('interval-amount') as HTMLInputElement).value || '1'
+      const unitSelect = document.getElementById('interval-unit') as HTMLSelectElement
+      const unit = unitSelect.options[unitSelect.selectedIndex]?.text ?? 'days'
+      return `${amount} ${unit}`
     },
   }
 }

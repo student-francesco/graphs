@@ -89,8 +89,7 @@ export function initSeriesTab(h: Harness): void {
       setLog(`No data on series "${id}" — load data first`)
       return
     }
-    const nextDate = new Date(last.date)
-    nextDate.setDate(nextDate.getDate() + 1)
+    const nextDate = new Date(new Date(last.date).getTime() + h.intervalMs())
     const point: RawDataPoint = {
       date: nextDate.toISOString(),
       value: Math.max(1, parseFloat(last.value.toFixed(2)) + (Math.random() - 0.48) * 10),

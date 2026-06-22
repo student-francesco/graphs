@@ -1,26 +1,30 @@
 import type { RawDataPoint } from '../lib/index.ts'
 
+/** One day in milliseconds — the default spacing between generated points. */
+export const DAY_MS = 86_400_000
+
 export function generateSeries(
-  days: number,
+  count: number,
   startDate = new Date('2024-01-01'),
   startValue = 100,
+  stepMs = DAY_MS,
 ): RawDataPoint[] {
   const points: RawDataPoint[] = []
   let value = startValue
-  for (let i = 0; i < days; i++) {
-    const date = new Date(startDate)
-    date.setDate(startDate.getDate() + i)
+  const startMs = startDate.getTime()
+  for (let i = 0; i < count; i++) {
+    const date = new Date(startMs + i * stepMs)
     value += (Math.random() - 0.48) * 10
     points.push({ date: date.toISOString(), value: Math.max(1, value) })
   }
   return points
 }
 
-/** Slide the window forward by `steps` days, keeping the window size constant */
-export function slideWindow(data: RawDataPoint[], steps: number): RawDataPoint[] {
+/** Slide the window forward by `steps` points (each spaced `stepMs`), keeping the window size constant */
+export function slideWindow(data: RawDataPoint[], steps: number, stepMs = DAY_MS): RawDataPoint[] {
   const sliced = data.slice(steps)
   const lastDate = new Date(sliced[sliced.length - 1]!.date)
-  const tail = generateSeries(steps, new Date(lastDate.getTime() + 86_400_000))
+  const tail = generateSeries(steps, new Date(lastDate.getTime() + stepMs), 100, stepMs)
   return [...sliced, ...tail]
 }
 
