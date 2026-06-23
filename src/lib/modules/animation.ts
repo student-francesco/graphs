@@ -4,9 +4,9 @@ import {
   Trigger,
   type ChartModule,
   type ModuleRuntime,
-} from '../engine/index.ts'
-import { EASING_MAP } from '../d3-maps.ts'
-import type { AnimationMode } from '../types.ts'
+} from '@/lib/engine/index.ts'
+import { EASING_MAP } from '@/lib/d3-maps.ts'
+import type { AnimationMode, InternalDataPoint } from '@/lib/types.ts'
 import {
   AnimationCtx,
   D3Ctx,
@@ -18,6 +18,7 @@ import {
   type GeomRole,
   type PathSpec,
   type ReshiftSpec,
+  type ScaleBundle,
 } from './tokens.ts'
 
 /**
@@ -42,7 +43,7 @@ export function animationModule(): ChartModule {
   // Mirrors the monolith's construction-time init: renders within the first
   // animation window use the easeExpOut interrupt easing.
   let lastRenderAt = Date.now()
-  let prevXScale: ((d: Date) => number) | null = null
+  let prevXScale: ScaleBundle['x'] | null = null
   let scrollStartX = 0
   let scrollDelta = 0
   let rtRef: ModuleRuntime | null = null
@@ -108,15 +109,15 @@ export function animationModule(): ChartModule {
           const currentX = m ? parseFloat(m[1]!) : 0
 
           if (prevXScale) {
-            let refDate: Date | undefined
+            let refX: InternalDataPoint['x'] | undefined
             for (const s of visible.values()) {
               if (s.raw.length > 0) {
-                refDate = s.raw[0]!.date
+                refX = s.raw[0]!.x
                 break
               }
             }
-            if (refDate) {
-              scrollStartX = prevXScale(refDate) - scales.x(refDate) + currentX
+            if (refX !== undefined) {
+              scrollStartX = prevXScale(refX) - scales.x(refX) + currentX
             }
           }
           scrollDelta = currentX - scrollStartX

@@ -23,7 +23,7 @@ describe('initial mount', () => {
   })
 
   it('throws for an unknown container id', async () => {
-    const { createLineChart } = await import('../src/lib/index.ts')
+    const { createLineChart } = await import('@/lib/index.ts')
     expect(() => createLineChart('no-such-element')).toThrow(/no element with id/)
   })
 })

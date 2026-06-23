@@ -1,7 +1,8 @@
 import * as d3 from 'd3'
-import { prepareStep, type ChartModule } from '../engine/index.ts'
+import { prepareStep, type ChartModule } from '@/lib/engine/index.ts'
 import {
   AxisLayouts,
+  DataKind,
   Layout,
   Scales,
   Settings,
@@ -10,6 +11,7 @@ import {
   YDomainValues,
   type AxisLayoutEntry,
   type ScaleBundle,
+  type XScale,
   type YScale,
 } from './tokens.ts'
 
@@ -39,26 +41,34 @@ export function scalesModule(): ChartModule {
           xValues: XDomainValues,
           yValues: YDomainValues,
           view: ViewTransform,
+          dataKind: DataKind,
         },
         provides: Scales,
         equals: (a, b) => a.desc === b.desc,
-        run: ({ layout, axisLayouts, settings, xValues, yValues, view }): ScaleBundle => {
+        run: ({ layout, axisLayouts, settings, xValues, yValues, view, dataKind }): ScaleBundle => {
           const { innerWidth, innerHeight } = layout
 
-          const allDates = xValues.flat()
-          const [d0, d1] = d3.extent(allDates)
+          // x is a time scale for temporal data, a linear scale for numeric data.
           // Pre-data fallback — renderers gate on HasData, but the scale must exist.
-          const xDomain: [Date, Date] =
-            d0 !== undefined && d1 !== undefined ? [d0, d1] : [new Date(0), new Date(86_400_000)]
-          const xAuto = d3.scaleTime().domain(xDomain).range([0, innerWidth])
+          const allX = xValues.flat()
+          let xAuto: XScale
+          if (dataKind === 'numeric') {
+            const [n0, n1] = d3.extent(allX as number[])
+            const xDomain: [number, number] =
+              n0 !== undefined && n1 !== undefined ? [n0, n1] : [0, 1]
+            xAuto = d3.scaleLinear().domain(xDomain).range([0, innerWidth])
+          } else {
+            const [d0, d1] = d3.extent(allX as Date[])
+            const xDomain: [Date, Date] =
+              d0 !== undefined && d1 !== undefined ? [d0, d1] : [new Date(0), new Date(86_400_000)]
+            xAuto = d3.scaleTime().domain(xDomain).range([0, innerWidth])
+          }
 
           // Layer 1: brush-set domain overrides replace the auto-computed extent.
-          const xBase =
+          // Date is a NumberValue, so the override domain feeds either scale kind.
+          const xBase: XScale =
             view.xDomainOverride !== null
-              ? (xAuto.copy().domain(view.xDomainOverride as [Date, Date]) as d3.ScaleTime<
-                  number,
-                  number
-                >)
+              ? (xAuto.copy().domain(view.xDomainOverride) as XScale)
               : xAuto
 
           // Layer 2: the d3.zoom transform stacks on top via rescale. Once any
@@ -84,7 +94,7 @@ export function scalesModule(): ChartModule {
           const yTicks = new Map<string, readonly number[]>()
           const xd = x.domain()
           const descParts: string[] = [
-            `x:${xd[0]!.getTime()}..${xd[1]!.getTime()}/${innerWidth}`,
+            `x:${+xd[0]!}..${+xd[1]!}/${innerWidth}`,
           ]
 
           for (const axis of axisLayouts) {

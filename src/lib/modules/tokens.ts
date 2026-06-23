@@ -1,12 +1,13 @@
 import type * as d3 from 'd3'
-import { collectToken, SettingsToken, token, type CollectToken, type Token } from '../engine/index.ts'
+import { collectToken, SettingsToken, token, type CollectToken, type Token } from '@/lib/engine/index.ts'
 import type {
   AnimationMode,
   ChartMargins,
   ChartSettings,
   CurveType,
-  SeriesDataPoint,
-} from '../types.ts'
+  DataPointKindValue,
+  InternalDataPoint
+} from '@/lib/types.ts'
 
 /**
  * Cross-module tokens. A token is just an id plus a type — listing the shared ones
@@ -86,11 +87,11 @@ export interface ResolvedSeriesStyle {
 
 export interface VisibleSeriesEntry {
   readonly id: string
-  readonly raw: readonly SeriesDataPoint[]
+  readonly raw: readonly InternalDataPoint[]
   readonly dataRev: number
   /** Bumped when the series must be reborn (renderers clear its elements). */
   readonly rebirth: number
-  readonly exit: readonly SeriesDataPoint[]
+  readonly exit: readonly InternalDataPoint[]
   readonly resolved: ResolvedSeriesStyle
 }
 
@@ -99,11 +100,11 @@ export const VisibleSeries: Token<ReadonlyMap<string, VisibleSeriesEntry>> =
   token('series.visible')
 
 /** id → points after the smoothing transform (these define the y auto-extent). */
-export const SmoothedSeries: Token<ReadonlyMap<string, readonly SeriesDataPoint[]>> =
+export const SmoothedSeries: Token<ReadonlyMap<string, readonly InternalDataPoint[]>> =
   token('series.smoothed')
 
 /** id → points after all display transforms (smoothing → decimation). */
-export const DisplaySeries: Token<ReadonlyMap<string, readonly SeriesDataPoint[]>> =
+export const DisplaySeries: Token<ReadonlyMap<string, readonly InternalDataPoint[]>> =
   token('series.display')
 
 // ---------------------------------------------------------------------------
@@ -150,18 +151,27 @@ export type YScale =
   | d3.ScaleLinear<number, number>
   | d3.ScaleLogarithmic<number, number>
 
+export type XScale =
+  | d3.ScaleTime<number, number>
+  | d3.ScaleLinear<number, number>
+
 export interface ScaleBundle {
-  readonly x: d3.ScaleTime<number, number>
+  readonly x: XScale
   readonly y: ReadonlyMap<string, YScale>
   /** Resolved tick values — axis chrome, grid, and Blazor label resolution all
-   *  consume the SAME arrays, so they can never disagree. */
-  readonly xTicks: readonly Date[]
+   *  consume the SAME arrays, so they can never disagree. Dates for temporal
+   *  charts, numbers for numeric charts. */
+  readonly xTicks: readonly (Date | number)[]
   readonly yTicks: ReadonlyMap<string, readonly number[]>
   /** Plain-value descriptor for change detection (scale instances are closures). */
   readonly desc: string
 }
 
 export const Scales: Token<ScaleBundle> = token('scales.bundle')
+
+/** The chart's data kind, provided by the series module from its adapter. Lets the
+ *  scales module pick a time vs linear x-scale without inspecting (possibly empty) data. */
+export const DataKind: Token<DataPointKindValue> = token('series.dataKind')
 
 /**
  * The two-layer viewport state owned by the zoom module: brush-set domain
@@ -172,14 +182,14 @@ export interface ViewTransformState {
   readonly k: number
   readonly x: number
   readonly y: number
-  readonly xDomainOverride: readonly [Date, Date] | null
+  readonly xDomainOverride: readonly [Date | number, Date | number] | null
   readonly yDomainOverrides: ReadonlyMap<string, readonly [number, number]>
 }
 
 export const ViewTransform: Token<ViewTransformState> = token('zoom.viewTransform')
 
 /** Dates folded into the x auto-extent (series raw data; future: vertical annotations). */
-export const XDomainValues: CollectToken<readonly Date[]> = collectToken('scales.xDomain')
+export const XDomainValues: CollectToken<readonly InternalDataPoint['x'][]> = collectToken('scales.xDomain')
 
 /** Values folded into per-axis y auto-extents (smoothed series data, annotation ys). */
 export const YDomainValues: CollectToken<ReadonlyArray<{ axisId: string; values: readonly number[] }>> =
@@ -199,9 +209,9 @@ export const YDomainValues: CollectToken<ReadonlyArray<{ axisId: string; values:
 export type GeomRole = 'scrolled' | 'marker' | 'free'
 
 export interface PathSpec {
-  readonly gen: d3.Line<SeriesDataPoint>
-  readonly display: readonly SeriesDataPoint[]
-  readonly exit: readonly SeriesDataPoint[]
+  readonly gen: d3.Line<InternalDataPoint>
+  readonly display: readonly InternalDataPoint[]
+  readonly exit: readonly InternalDataPoint[]
   /** Brand-new paths fall back to a drawOn reveal in morph/transition modes. */
   readonly isNew: boolean
 }
@@ -249,6 +259,7 @@ export const KNOWN_PROVIDERS: ReadonlyMap<string, string> = new Map([
   [Layout.id, 'context'],
   [HasData.id, 'series'],
   [VisibleSeries.id, 'series'],
+  [DataKind.id, 'series'],
   [SmoothedSeries.id, 'smoothing'],
   [DisplaySeries.id, 'decimation'],
   [AxesDef.id, 'axes-store'],

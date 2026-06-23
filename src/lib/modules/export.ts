@@ -1,5 +1,5 @@
-import { type ChartModule } from '../engine/index.ts'
-import { buildPdf } from '../pdf.ts'
+import { type ChartModule } from '@/lib/engine/index.ts'
+import { buildPdf } from '@/lib/pdf.ts'
 import { ContainerSize, D3Ctx } from './tokens.ts'
 
 /**

@@ -1,5 +1,5 @@
-import { renderStep, type ChartModule } from '../engine/index.ts'
-import { removeSkeleton, renderSkeleton } from '../skeleton.ts'
+import { renderStep, type ChartModule } from '@/lib/engine/index.ts'
+import { removeSkeleton, renderSkeleton } from '@/lib/skeleton.ts'
 import { D3Ctx, HasData, Layout, Settings } from './tokens.ts'
 
 /**

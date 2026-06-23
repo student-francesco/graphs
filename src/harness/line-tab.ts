@@ -1,4 +1,4 @@
-import type { CurveType } from '../lib/types.ts'
+import type { CurveType } from '@/lib/types.ts'
 import { generateExpSeries } from './data.ts'
 import type { Harness } from './state.ts'
 

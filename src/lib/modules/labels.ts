@@ -1,6 +1,6 @@
-import { prepareStep, renderStep, token, type ChartModule } from '../engine/index.ts'
-import { TITLE_SPACE, X_LABEL_SPACE, Y_LABEL_SPACE } from '../defaults.ts'
-import type { ChartMargins } from '../types.ts'
+import { prepareStep, renderStep, token, type ChartModule } from '@/lib/engine/index.ts'
+import { TITLE_SPACE, X_LABEL_SPACE, Y_LABEL_SPACE } from '@/lib/defaults.ts'
+import type { ChartMargins } from '@/lib/types.ts'
 import { Layout, MarginRequests, Settings } from './tokens.ts'
 
 interface LabelPlan {

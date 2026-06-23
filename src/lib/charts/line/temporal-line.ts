@@ -1,26 +1,28 @@
-import { ChartEngine, type ChartModule } from '../engine/index.ts'
-import { animationModule } from '../modules/animation.ts'
-import { annotationsModule } from '../modules/annotations.ts'
-import { axesRenderModule } from '../modules/axes-render.ts'
-import { axesStoreModule } from '../modules/axes-store.ts'
-import { contextModule } from '../modules/context.ts'
-import { decimationModule } from '../modules/decimation.ts'
-import { dotsModule } from '../modules/dots.ts'
-import { exportModule } from '../modules/export.ts'
-import { geometryLineModule } from '../modules/geometry-line.ts'
-import { gridModule } from '../modules/grid.ts'
-import { labelsModule } from '../modules/labels.ts'
-import { scalesModule } from '../modules/scales.ts'
-import { seriesModule } from '../modules/series.ts'
-import { settingsModule } from '../modules/settings.ts'
-import { skeletonModule } from '../modules/skeleton.ts'
-import { smoothingModule } from '../modules/smoothing.ts'
-import { snapshotModule } from '../modules/snapshot.ts'
-import { KNOWN_PROVIDERS } from '../modules/tokens.ts'
-import { tooltipModule } from '../modules/tooltip.ts'
-import { valueLabelsModule } from '../modules/value-labels.ts'
-import { zoomModule } from '../modules/zoom.ts'
-import type { ChartSettings, LineChartHandle } from '../types.ts'
+import { ChartEngine, type ChartModule } from '@/lib/engine/index.ts'
+import { animationModule } from '@/lib/modules/animation.ts'
+import { annotationsModule } from '@/lib/modules/annotations.ts'
+import { axesRenderModule } from '@/lib/modules/axes-render.ts'
+import { axesStoreModule } from '@/lib/modules/axes-store.ts'
+import { contextModule } from '@/lib/modules/context.ts'
+import { decimationModule } from '@/lib/modules/decimation.ts'
+import { dotsModule } from '@/lib/modules/dots.ts'
+import { exportModule } from '@/lib/modules/export.ts'
+import { geometryLineModule } from '@/lib/modules/geometry-line.ts'
+import { gridModule } from '@/lib/modules/grid.ts'
+import { labelsModule } from '@/lib/modules/labels.ts'
+import { scalesModule } from '@/lib/modules/scales.ts'
+import { seriesModule } from '@/lib/modules/series.ts'
+import { settingsModule } from '@/lib/modules/settings.ts'
+import { skeletonModule } from '@/lib/modules/skeleton.ts'
+import { smoothingModule } from '@/lib/modules/smoothing.ts'
+import { snapshotModule } from '@/lib/modules/snapshot.ts'
+import { KNOWN_PROVIDERS } from '@/lib/modules/tokens.ts'
+import { tooltipModule } from '@/lib/modules/tooltip.ts'
+import { valueLabelsModule } from '@/lib/modules/value-labels.ts'
+import { zoomModule } from '@/lib/modules/zoom.ts'
+import type { ChartSettings } from '@/lib/types.ts'
+import type { LineChartHandle } from './types.ts'
+import { temporalAdapter } from '@/lib/adapter.ts'
 
 /**
  * Module list for the line chart — the only place a feature is registered.
@@ -37,7 +39,17 @@ export function LINE_MODULES(container: HTMLElement): ChartModule[] {
     contextModule(container),
     settingsModule(),
     axesStoreModule(),
-    seriesModule(),
+    seriesModule(temporalAdapter({
+      parse: (raw) => {
+        const d = new Date(raw.date)
+        if (isNaN(d.getTime())) throw new Error(`LineChart: invalid date "${raw.date}"`)
+        return { x: d, y: raw.value }
+      },
+      dump: (p) => ({
+        date: (p.x as Date).toISOString(),
+        value: p.y
+      })
+    })),
     smoothingModule(),
     decimationModule(),
     animationModule(),

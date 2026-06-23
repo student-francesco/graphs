@@ -1,6 +1,6 @@
 import * as d3 from 'd3'
-import { renderStep, storeSpec, type ChartModule, type ModuleRuntime } from '../engine/index.ts'
-import { EASING_MAP } from '../d3-maps.ts'
+import { renderStep, storeSpec, type ChartModule, type ModuleRuntime } from '@/lib/engine/index.ts'
+import { EASING_MAP } from '@/lib/d3-maps.ts'
 import {
   D3Ctx,
   Layout,
@@ -22,6 +22,19 @@ function isZoomedState(s: ViewTransformState): boolean {
   return (
     s.k !== 1 || s.x !== 0 || s.y !== 0 || s.xDomainOverride !== null || s.yDomainOverrides.size > 0
   )
+}
+
+/** Serialize an x-domain bound: Date → ISO 8601 string, number → number (no coercion). */
+function serializeXBound(x: Date | number): string | number {
+  return x instanceof Date ? x.toISOString() : x
+}
+
+/** Restore an x-domain bound: number stays numeric; a string parses to a Date.
+ *  Returns null for an unparseable value so the caller can drop the override. */
+function restoreXBound(v: string | number): Date | number | null {
+  if (typeof v === 'number') return v
+  const d = new Date(v)
+  return isNaN(d.getTime()) ? null : d
 }
 
 /**
@@ -164,7 +177,7 @@ export function zoomModule(): ChartModule {
         if (orient === 'h' || orient === 'rect') {
           const d0 = scales.x.invert(x)
           const d1 = scales.x.invert(x + w)
-          xOverride = d0 <= d1 ? [d0, d1] : [d1, d0]
+          xOverride = +d0 <= +d1 ? [d0, d1] : [d1, d0]
         }
         if (orient === 'v' || orient === 'rect') {
           for (const [id, yScale] of scales.y) {
@@ -286,10 +299,11 @@ export function zoomModule(): ChartModule {
           const s = view.get()
           return {
             transform: { k: s.k, x: s.x, y: s.y },
+            // Dates serialize as ISO 8601, numeric overrides as raw numbers.
             xDomainOverride: s.xDomainOverride
-              ? ([s.xDomainOverride[0].toISOString(), s.xDomainOverride[1].toISOString()] as [
-                  string,
-                  string,
+              ? ([serializeXBound(s.xDomainOverride[0]), serializeXBound(s.xDomainOverride[1])] as [
+                  string | number,
+                  string | number,
                 ])
               : null,
             yDomainOverrides: Array.from(s.yDomainOverrides.entries()).map(([axisId, range]) => ({
@@ -301,14 +315,14 @@ export function zoomModule(): ChartModule {
         restore: value => {
           const raw = value as {
             transform?: { k: number; x: number; y: number }
-            xDomainOverride?: [string, string] | null
+            xDomainOverride?: [string | number, string | number] | null
             yDomainOverrides?: Array<{ axisId: string; range: [number, number] }>
           }
-          let xDomainOverride: readonly [Date, Date] | null = null
+          let xDomainOverride: readonly [Date | number, Date | number] | null = null
           if (raw?.xDomainOverride) {
-            const da = new Date(raw.xDomainOverride[0])
-            const db = new Date(raw.xDomainOverride[1])
-            if (!isNaN(da.getTime()) && !isNaN(db.getTime())) xDomainOverride = [da, db]
+            const da = restoreXBound(raw.xDomainOverride[0])
+            const db = restoreXBound(raw.xDomainOverride[1])
+            if (da !== null && db !== null) xDomainOverride = [da, db]
           }
           const yDomainOverrides = new Map<string, readonly [number, number]>()
           for (const yo of raw?.yDomainOverrides ?? []) {

@@ -1,6 +1,6 @@
-import { renderStep, type ChartModule } from '../engine/index.ts'
-import { DEFAULT_SETTINGS } from '../defaults.ts'
-import type { ChartSettings } from '../types.ts'
+import { renderStep, type ChartModule } from '@/lib/engine/index.ts'
+import { DEFAULT_SETTINGS } from '@/lib/defaults.ts'
+import type { ChartSettings } from '@/lib/types.ts'
 import { D3Ctx, Settings } from './tokens.ts'
 
 /**

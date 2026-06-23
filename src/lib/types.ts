@@ -28,20 +28,41 @@ export type CurveType =
   | 'stepAfter'
 
 /** What Blazor sends over JS interop — C# DateTime serializes to ISO 8601 string */
-export interface SeriesDataPointRaw {
-  date: string
+export interface TemporalDataPointRaw {
+  date: string | Date
   value: number
 }
 
 /** Internal representation after date parsing */
-export interface SeriesDataPoint {
+export interface TemporalDataPoint {
   date: Date
   value: number
 }
 
+/** Number (X,Y) values */
 export interface NumericDataPoint {
-    x: number
-    y: number
+  x: number
+  y: number
+}
+
+/** Internal representation of data; polymorphic */
+export interface InternalDataPoint {
+  x: Date | number
+  y: number
+}
+
+export const DataPointKind = {
+  Temporal: 'temporal',
+  Numeric: 'numeric',
+} as const
+
+/** The value side of DataPointKind — 'temporal' | 'numeric'. */
+export type DataPointKindValue = (typeof DataPointKind)[keyof typeof DataPointKind]
+
+export interface DataKindAdapter<Raw> {
+  kind: DataPointKindValue
+  parse(raw: Raw): InternalDataPoint
+  dump(point: InternalDataPoint): Raw
 }
 
 export interface ChartMargins {
@@ -220,7 +241,7 @@ export interface SeriesSnapshot {
   id: string
   axisId: string
   /** ISO 8601 strings — same shape Blazor sends across JS interop. */
-  data: SeriesDataPointRaw[]
+  data: TemporalDataPointRaw[]
   color: string | undefined
   lineWeight: number | undefined
   dotRadius: number | undefined
@@ -291,38 +312,8 @@ export interface ChartSnapshot {
   } & Record<string, unknown>
 }
 
-/** The object Blazor holds as IJSObjectReference */
-export interface LineChartHandle
-  extends ChartHandle,
-          AnnotationHandle,
-          SnapshotHandle,
-          SeriesHandle,
-          AxisHandle,
-          ZoomHandle {
-  /** Load initial data — hides skeleton and animates chart in */
-  setData(data: SeriesDataPointRaw[]): void
-  /** Load multi-series data — each key becomes a named series */
-  setData(data: Record<string, SeriesDataPointRaw[]>): void
-  /**
-   * Smart delta-aware update for live/streaming charts.
-   * Computes overlap with existing data; transitions if sufficient overlap,
-   * otherwise performs a full replace (equivalent to setData).
-   */
-  updateData(data: SeriesDataPointRaw[]): void
-  /** Live update chart settings and re-render. Changes cascade to all series and axes without per-object overrides. */
-  updateSettings(settings: Partial<ChartSettings>): void
-  /** Fast path — directly mutates SVG stroke color without full re-render */
-  setLineColor(color: string): void
-  /** Fast path — directly mutates SVG stroke width without full re-render */
-  setLineWeight(weight: number): void
-  /** Append a single data point and re-render */
-  appendDataPoint(point: SeriesDataPointRaw): void
-  /** Append multiple data points and re-render once */
-  appendDataPoints(points: SeriesDataPointRaw[]): void
-}
-
 // --- General chart-agnostic API ---
-interface ChartHandle {
+export interface ChartHandle {
   /** Remove the chart from the DOM and clean up all resources */
   destroy(): void
   /** Export the current chart as a PDF and trigger a browser download */
@@ -332,7 +323,7 @@ interface ChartHandle {
 }
 
 // --- Annotation API ---
-interface AnnotationHandle {
+export interface AnnotationHandle {
   /**
    * Create a horizontal line across the chart, pinned to a y-axis.
    * `y` is in the bound axis's value space and the axis treats it like a data point to ensure it remains within the ranges. `settings.axis` selects the axis (defaults to the first axis).
@@ -342,7 +333,7 @@ interface AnnotationHandle {
   setHorizontalLine(name: string, y: number, label: string, settings?: HorizontalAnnotationSettings): void
   /**
    * Create a vertical line at the given timestamp.
-   * `x` is an ISO 8601 date string (same format Blazor sends for `RawDataPoint.date`); it is parsed to a Date internally.
+   * `x` is an ISO 8601 date string (same format Blazor sends for `TemporalDataPointRaw.date`); it is parsed to a Date internally.
    * Vertical annotations are not tied to any y-axis and survive y-axis removal.
    * Replaces any existing annotation with the same name.
    */
@@ -358,7 +349,7 @@ interface AnnotationHandle {
 }
 
 // --- Snapshot API ---
-interface SnapshotHandle {
+export interface SnapshotHandle {
   /**
    * Capture the chart's full mutable state as a JSON-safe snapshot (format
    * version 2: per-module slices). Includes settings (minus the two function
@@ -377,19 +368,19 @@ interface SnapshotHandle {
 }
 
 // --- Multi-series API ---
-interface SeriesHandle {
+export interface SeriesHandle {
   /** Add a named series; no-op if id already exists */
   addSeries(id: string, settings?: SeriesSettings): void
   /** Remove a named series and re-render; 'default' cannot be removed */
   removeSeries(id: string): void
   /** Replace the data for a named series; auto-creates the series if absent */
-  setSeriesData(id: string, data: SeriesDataPointRaw[]): void
+  setSeriesData(id: string, data: TemporalDataPointRaw[]): void
   /** Delta-aware update for a named series, mirrors updateData */
-  updateSeriesData(id: string, data: SeriesDataPointRaw[]): void
+  updateSeriesData(id: string, data: TemporalDataPointRaw[]): void
   /** Append a single point to a named series */
-  appendSeriesDataPoint(id: string, point: SeriesDataPointRaw): void
+  appendSeriesDataPoint(id: string, point: TemporalDataPointRaw): void
   /** Append multiple points to a named series */
-  appendSeriesDataPoints(id: string, points: SeriesDataPointRaw[]): void
+  appendSeriesDataPoints(id: string, points: TemporalDataPointRaw[]): void
   /** Fast path — mutates stroke color for a named series */
   setSeriesColor(id: string, color: string): void
   /** Fast path — mutates stroke width for a named series */
@@ -399,7 +390,7 @@ interface SeriesHandle {
 }
 
 // --- Multi-axis API ---
-interface AxisHandle {
+export interface AxisHandle {
   /** Create or update a named y-axis. Sparse — only provided fields are written. */
   createAxis(name: string, options?: AxisSettings): void
   /**
@@ -414,7 +405,7 @@ interface AxisHandle {
 }
 
 // --- Zoom API ---
-interface ZoomHandle {
+export interface ZoomHandle {
   /** Reset any pan / zoom transform back to identity (animated). No-op when already at identity. */
   resetZoom(): void
 }

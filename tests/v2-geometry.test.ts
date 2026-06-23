@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createLineChart } from '../src/lib/index.ts'
-import type { ChartSettings, LineChartHandle } from '../src/lib/index.ts'
+import { createLineChart } from '@/lib/index.ts'
+import type { ChartSettings, LineChartHandle } from '@/lib/index.ts'
 import { genSeries } from './helpers.ts'
 
 /** v2 (module engine) — static geometry slice: series, scales, axes, grid. */

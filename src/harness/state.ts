@@ -1,4 +1,4 @@
-import type { LineChartHandle, RawDataPoint } from '../lib/index.ts'
+import type { LineChartHandle, RawDataPoint } from '@/lib/index.ts'
 
 export interface AxisRecord {
   name: string

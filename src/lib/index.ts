@@ -1,6 +1,6 @@
 export type {
-  SeriesDataPoint as DataPoint,
-  SeriesDataPointRaw as RawDataPoint,
+  TemporalDataPoint as DataPoint,
+  TemporalDataPointRaw as RawDataPoint,
   ChartSettings,
   ChartMargins,
   CurveType,
@@ -11,7 +11,6 @@ export type {
   AnnotationStyle,
   HorizontalAnnotationSettings,
   VerticalAnnotationSettings,
-  LineChartHandle,
   ChartSnapshot,
   SerializableChartSettings,
   AxisSnapshot,
@@ -20,6 +19,7 @@ export type {
   AnnotationSnapshot,
   ZoomSnapshot,
 } from './types.ts'
+export type { LineChartHandle } from './charts/line/types.ts'
 export { DEFAULT_SETTINGS } from './defaults.ts'
 export { lttb, movingAverage } from './transforms.ts'
-export { createLineChart } from './charts/line.ts'
+export { createLineChart } from './charts/line/temporal-line.ts'

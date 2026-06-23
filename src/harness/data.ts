@@ -1,4 +1,4 @@
-import type { RawDataPoint } from '../lib/index.ts'
+import type { RawDataPoint } from '@/lib/index.ts'
 
 /** One day in milliseconds — the default spacing between generated points. */
 export const DAY_MS = 86_400_000

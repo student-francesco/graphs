@@ -1,6 +1,6 @@
-import { prepareStep, type ChartModule } from '../engine/index.ts'
-import { movingAverage } from '../transforms.ts'
-import type { SeriesDataPoint } from '../types.ts'
+import { prepareStep, type ChartModule } from '@/lib/engine/index.ts'
+import { movingAverage } from '@/lib/transforms.ts'
+import type { InternalDataPoint } from '@/lib/types.ts'
 import { SmoothedSeries, VisibleSeries } from './tokens.ts'
 
 /**
@@ -10,7 +10,7 @@ import { SmoothedSeries, VisibleSeries } from './tokens.ts'
  * unchanged series, so downstream diffs stay quiet.
  */
 export function smoothingModule(): ChartModule {
-  const memo = new Map<string, { raw: readonly SeriesDataPoint[]; window: number; out: readonly SeriesDataPoint[] }>()
+  const memo = new Map<string, { raw: readonly InternalDataPoint[]; window: number; out: readonly InternalDataPoint[] }>()
 
   return {
     id: 'smoothing',
@@ -22,8 +22,8 @@ export function smoothingModule(): ChartModule {
         description: 'Apply each visible series’ moving-average window to its raw points, memoised per series.',
         reads: { visible: VisibleSeries },
         provides: SmoothedSeries,
-        run: ({ visible }): ReadonlyMap<string, readonly SeriesDataPoint[]> => {
-          const out = new Map<string, readonly SeriesDataPoint[]>()
+        run: ({ visible }): ReadonlyMap<string, readonly InternalDataPoint[]> => {
+          const out = new Map<string, readonly InternalDataPoint[]>()
           for (const s of visible.values()) {
             const window = s.resolved.smoothing
             const cached = memo.get(s.id)
@@ -31,7 +31,7 @@ export function smoothingModule(): ChartModule {
               out.set(s.id, cached.out)
               continue
             }
-            const smoothed = movingAverage(s.raw as SeriesDataPoint[], window)
+            const smoothed = movingAverage(s.raw as InternalDataPoint[], window)
             memo.set(s.id, { raw: s.raw, window, out: smoothed })
             out.set(s.id, smoothed)
           }

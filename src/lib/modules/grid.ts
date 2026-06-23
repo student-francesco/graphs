@@ -1,5 +1,5 @@
 import * as d3 from 'd3'
-import { renderStep, type ChartModule } from '../engine/index.ts'
+import { renderStep, type ChartModule } from '@/lib/engine/index.ts'
 import { AnimationCtx, AxisLayouts, HasData, Layout, Scales } from './tokens.ts'
 
 /**

@@ -1,4 +1,4 @@
-import type { AnimationMode, EasingType } from '../lib/types.ts'
+import type { AnimationMode, EasingType } from '@/lib/types.ts'
 import type { Harness } from './state.ts'
 
 /** Animation tab: mode per operation, duration, easing, rolling window size. */

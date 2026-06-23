@@ -1,4 +1,4 @@
-import type { HorizontalAnnotationSettings, VerticalAnnotationSettings } from '../lib/index.ts'
+import type { HorizontalAnnotationSettings, VerticalAnnotationSettings } from '@/lib/index.ts'
 import type { Harness } from './state.ts'
 
 export interface AnnotationsTabApi {

@@ -1,4 +1,4 @@
-import { type ChartModule } from '../engine/index.ts'
+import { type ChartModule } from '@/lib/engine/index.ts'
 
 export interface ChartSnapshotV2 {
   version: 2

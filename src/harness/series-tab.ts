@@ -1,4 +1,4 @@
-import type { CurveType, RawDataPoint, SeriesSettings } from '../lib/index.ts'
+import type { CurveType, RawDataPoint, SeriesSettings } from '@/lib/index.ts'
 import { generateSeries } from './data.ts'
 import { PALETTE, type Harness } from './state.ts'
 

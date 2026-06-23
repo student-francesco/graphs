@@ -1,6 +1,6 @@
-import { prepareStep, type ChartModule } from '../engine/index.ts'
-import { lttb } from '../transforms.ts'
-import type { SeriesDataPoint } from '../types.ts'
+import { prepareStep, type ChartModule } from '@/lib/engine/index.ts'
+import { lttb } from '@/lib/transforms.ts'
+import type { InternalDataPoint } from '@/lib/types.ts'
 import { DisplaySeries, SmoothedSeries, VisibleSeries } from './tokens.ts'
 
 /**
@@ -12,7 +12,7 @@ import { DisplaySeries, SmoothedSeries, VisibleSeries } from './tokens.ts'
 export function decimationModule(): ChartModule {
   const memo = new Map<
     string,
-    { input: readonly SeriesDataPoint[]; threshold: number; out: readonly SeriesDataPoint[] }
+    { input: readonly InternalDataPoint[]; threshold: number; out: readonly InternalDataPoint[] }
   >()
 
   return {
@@ -25,8 +25,8 @@ export function decimationModule(): ChartModule {
         description: 'Downsample each smoothed series to its LTTB threshold, memoised per series.',
         reads: { smoothed: SmoothedSeries, visible: VisibleSeries },
         provides: DisplaySeries,
-        run: ({ smoothed, visible }): ReadonlyMap<string, readonly SeriesDataPoint[]> => {
-          const out = new Map<string, readonly SeriesDataPoint[]>()
+        run: ({ smoothed, visible }): ReadonlyMap<string, readonly InternalDataPoint[]> => {
+          const out = new Map<string, readonly InternalDataPoint[]>()
           for (const s of visible.values()) {
             const input = smoothed.get(s.id) ?? []
             const threshold = s.resolved.decimation
@@ -35,7 +35,7 @@ export function decimationModule(): ChartModule {
               out.set(s.id, cached.out)
               continue
             }
-            const display = threshold === 0 ? input : lttb(input as SeriesDataPoint[], threshold)
+            const display = threshold === 0 ? input : lttb(input as InternalDataPoint[], threshold)
             memo.set(s.id, { input, threshold, out: display })
             out.set(s.id, display)
           }

@@ -1,6 +1,6 @@
-import { prepareStep, storeSpec, token, type ChartModule, type Token } from '../engine/index.ts'
-import { AXIS_WIDTH } from '../defaults.ts'
-import type { AxisSettings, ChartMargins } from '../types.ts'
+import { prepareStep, storeSpec, token, type ChartModule, type Token } from '@/lib/engine/index.ts'
+import { AXIS_WIDTH } from '@/lib/defaults.ts'
+import type { AxisSettings, ChartMargins } from '@/lib/types.ts'
 import {
   AxesDef,
   AxisLayouts,

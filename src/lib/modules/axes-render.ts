@@ -1,6 +1,6 @@
 import * as d3 from 'd3'
-import { prepareStep, renderStep, token, type ChartModule, type Token } from '../engine/index.ts'
-import type { ChartSettings } from '../types.ts'
+import { prepareStep, renderStep, token, type ChartModule, type Token } from '@/lib/engine/index.ts'
+import type { ChartSettings } from '@/lib/types.ts'
 import {
   AnimationCtx,
   AxisLayouts,
@@ -9,6 +9,7 @@ import {
   Scales,
   Settings,
   type AxisLayoutEntry,
+  type XScale,
 } from './tokens.ts'
 
 interface XTickModel {
@@ -88,9 +89,9 @@ export function axesRenderModule(): ChartModule {
           if (!hasData) return { show: false, xTicks: [], yAxes: [], showNames: false }
 
           const assemble = (xLabels: string[], yLabels: ReadonlyMap<string, string[]>): AxisRenderModel => {
-            const xTicks: XTickModel[] = scales.xTicks.map((date, i) => ({
-              ms: date.getTime(),
-              x: scales.x(date),
+            const xTicks: XTickModel[] = scales.xTicks.map((tick, i) => ({
+              ms: +tick,
+              x: scales.x(tick),
               label: xLabels[i]!,
             }))
             const yAxes: YAxisModel[] = []
@@ -286,25 +287,32 @@ export function axesRenderModule(): ChartModule {
 }
 
 function resolveXLabelsSync(
-  ticks: readonly Date[],
-  xScale: d3.ScaleTime<number, number>,
+  ticks: readonly (Date | number)[],
+  xScale: XScale,
   settings: ChartSettings,
 ): string[] {
   const formatter = settings.xAxisFormatter
-  if (typeof formatter === 'function') return ticks.map((d, i) => formatter(d, i))
-  const fmt = xScale.tickFormat()
+  // The public formatter is typed for Date (temporal charts); a numeric chart's
+  // tick is passed through as the raw number — never coerced to a Date.
+  if (typeof formatter === 'function') return ticks.map((d, i) => formatter(d as Date, i))
+  // Each scale kind yields a matching formatter (time vs number); the tick type
+  // always agrees with the scale that produced it.
+  const fmt = xScale.tickFormat() as (d: Date | number) => string
   return ticks.map(d => fmt(d))
 }
 
 async function resolveXLabelsAsync(
-  ticks: readonly Date[],
-  xScale: d3.ScaleTime<number, number>,
+  ticks: readonly (Date | number)[],
+  xScale: XScale,
   settings: ChartSettings,
   delegate: DotNetDelegate,
 ): Promise<string[]> {
   try {
     return await Promise.all(
-      ticks.map((d, i) => delegate.invokeMethodAsync('executeDelegate', d.toISOString(), i)),
+      // Temporal ticks serialize as ISO 8601; numeric ticks go over as the raw number.
+      ticks.map((d, i) =>
+        delegate.invokeMethodAsync('executeDelegate', d instanceof Date ? d.toISOString() : d, i),
+      ),
     )
   } catch (e) {
     console.warn('Failed to invoke formatter from Blazor', e)

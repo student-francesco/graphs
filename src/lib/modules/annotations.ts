@@ -6,11 +6,11 @@ import {
   token,
   type ChartModule,
   type Token,
-} from '../engine/index.ts'
+} from '@/lib/engine/index.ts'
 import type {
   HorizontalAnnotationSettings,
   VerticalAnnotationSettings,
-} from '../types.ts'
+} from '@/lib/types.ts'
 import {
   AnimationCtx,
   HasData,

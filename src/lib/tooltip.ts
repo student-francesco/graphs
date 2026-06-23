@@ -1,5 +1,5 @@
 import * as d3 from 'd3'
-import type { SeriesDataPoint, ChartSettings } from './types.ts'
+import type { InternalDataPoint, ChartSettings } from './types.ts'
 
 export class TooltipController {
   private readonly el: HTMLDivElement
@@ -32,14 +32,15 @@ export class TooltipController {
     document.body.appendChild(this.el)
   }
 
-  show(event: MouseEvent, point: SeriesDataPoint, seriesName?: string): void {
+  show(event: MouseEvent, point: InternalDataPoint, seriesName?: string): void {
     const namePart = seriesName
       ? `<div style="font-size:11px;opacity:0.75;margin-bottom:2px">${seriesName}</div>`
       : ''
+    // x is polymorphic (Date | number); the date formatter needs a Date.
     this.el.innerHTML =
       namePart +
-      `<div style="font-size:11px;opacity:0.75">${this.dateFormat(point.date)}</div>` +
-      `<div style="font-weight:600">${this.valueFormat(point.value)}</div>`
+      `<div style="font-size:11px;opacity:0.75">${typeof point.x === 'number' ? this.valueFormat(point.x) : this.dateFormat(point.x)}</div>` +
+      `<div style="font-weight:600">${this.valueFormat(point.y)}</div>`
     this.el.style.opacity = '1'
     this.position(event)
   }

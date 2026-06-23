@@ -1,4 +1,4 @@
-import type { RawDataPoint } from '../lib/index.ts'
+import type { RawDataPoint } from '@/lib/index.ts'
 import { generateSeries, slideWindow } from './data.ts'
 import type { Harness } from './state.ts'
 

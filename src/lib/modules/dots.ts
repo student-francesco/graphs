@@ -1,5 +1,5 @@
-import { renderStep, type ChartModule } from '../engine/index.ts'
-import type { SeriesDataPoint } from '../types.ts'
+import { renderStep, type ChartModule } from '@/lib/engine/index.ts'
+import type { InternalDataPoint } from '@/lib/types.ts'
 import { AnimationCtx, DisplaySeries, Scales, VisibleSeries } from './tokens.ts'
 
 /**
@@ -36,20 +36,20 @@ export function dotsModule(): ChartModule {
             }
 
             const displayPoints = display.get(s.id) ?? []
-            const joinData =
-              s.exit.length > 0 ? [...s.exit, ...displayPoints] : (displayPoints as SeriesDataPoint[])
+            const joinData: InternalDataPoint[] =
+              s.exit.length > 0 ? [...s.exit, ...displayPoints] : [...displayPoints]
 
             const yScale = scales.y.get(s.resolved.axisId) ?? primary!
             const dots = g
-              .selectAll<SVGCircleElement, SeriesDataPoint>('.lc-dot')
-              .data(joinData, d => d.date.getTime())
+              .selectAll<SVGCircleElement, InternalDataPoint>('.lc-dot')
+              .data(joinData, d => +d.x)
 
             const enter = dots
               .enter()
               .append('circle')
               .attr('class', 'lc-dot')
-              .attr('cx', d => scales.x(d.date))
-              .attr('cy', d => yScale(d.value))
+              .attr('cx', d => scales.x(d.x))
+              .attr('cy', d => yScale(d.y))
               .attr('r', 0)
               .attr('stroke-width', 2)
 
@@ -60,8 +60,8 @@ export function dotsModule(): ChartModule {
 
             anim.position(merged, 'marker', sel =>
               sel
-                .attr('cx', (d: SeriesDataPoint) => scales.x(d.date))
-                .attr('cy', (d: SeriesDataPoint) => yScale(d.value))
+                .attr('cx', (d: InternalDataPoint) => scales.x(d.x))
+                .attr('cy', (d: InternalDataPoint) => yScale(d.y))
                 .attr('r', dotRadius),
             )
 

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createLineChart } from '../src/lib/index.ts'
-import type { ChartSnapshotV2 } from '../src/lib/modules/snapshot.ts'
-import type { ChartSettings, LineChartHandle } from '../src/lib/index.ts'
+import { createLineChart } from '@/lib/index.ts'
+import type { ChartSnapshotV2 } from '@/lib/modules/snapshot.ts'
+import type { ChartSettings, LineChartHandle } from '@/lib/index.ts'
 import { genSeries } from './helpers.ts'
 
 /** v2 (module engine) — overlays + state: annotations, tooltip, snapshot. */

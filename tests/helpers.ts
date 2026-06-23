@@ -1,6 +1,6 @@
 import { afterEach } from 'vitest'
-import { createLineChart } from '../src/lib/index.ts'
-import type { ChartSettings, LineChartHandle, RawDataPoint } from '../src/lib/index.ts'
+import { createLineChart } from '@/lib/index.ts'
+import type { ChartSettings, LineChartHandle, RawDataPoint } from '@/lib/index.ts'
 
 let chartCounter = 0
 const cleanups: Array<() => void> = []

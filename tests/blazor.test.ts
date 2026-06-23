@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ChartSettings } from '../src/lib/index.ts'
+import type { ChartSettings } from '@/lib/index.ts'
 import { flushMicrotasks, genSeries, makeDelegate, makeFailingDelegate, mountChart } from './helpers.ts'
 
 /** The chart treats any non-function formatter object as a .NET delegate wrapper. */

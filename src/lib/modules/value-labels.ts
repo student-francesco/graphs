@@ -1,6 +1,6 @@
 import * as d3 from 'd3'
-import { renderStep, type ChartModule } from '../engine/index.ts'
-import type { SeriesDataPoint } from '../types.ts'
+import { renderStep, type ChartModule } from '@/lib/engine/index.ts'
+import type { InternalDataPoint, TemporalDataPoint } from '@/lib/types.ts'
 import { AnimationCtx, DisplaySeries, Scales, VisibleSeries } from './tokens.ts'
 
 /**
@@ -43,29 +43,29 @@ export function valueLabelsModule(): ChartModule {
             const yScale = scales.y.get(s.resolved.axisId) ?? primary!
 
             const labels = g
-              .selectAll<SVGTextElement, SeriesDataPoint>('.lc-label')
-              .data(display.get(s.id) ?? [], d => d.date.getTime())
+              .selectAll<SVGTextElement, InternalDataPoint>('.lc-label')
+              .data(display.get(s.id) ?? [], d => typeof d.x === 'number' ? d.x as number : (d.x as Date).getTime())
 
             const enter = labels
               .enter()
               .append('text')
               .attr('class', 'lc-label')
-              .attr('x', d => scales.x(d.date))
-              .attr('y', d => yScale(d.value) + offsetY)
+              .attr('x', d => scales.x(d.x))
+              .attr('y', d => yScale(d.y) + offsetY)
               .attr('text-anchor', 'middle')
               .attr('font-size', '10px')
               .attr('font-family', 'sans-serif')
               .attr('fill', color)
               .attr('pointer-events', 'none')
               .style('opacity', 0)
-              .text(d => fmt(d.value))
+              .text(d => fmt(d.y))
 
-            const merged = enter.merge(labels).attr('fill', color).text(d => fmt(d.value))
+            const merged = enter.merge(labels).attr('fill', color).text(d => fmt(d.x))
 
             anim.position(merged, 'free', sel =>
               sel
-                .attr('x', (d: SeriesDataPoint) => scales.x(d.date))
-                .attr('y', (d: SeriesDataPoint) => yScale(d.value) + offsetY)
+                .attr('x', (d: TemporalDataPoint) => scales.x(d.date))
+                .attr('y', (d: TemporalDataPoint) => yScale(d.value) + offsetY)
                 .style('opacity', 1),
             )
 

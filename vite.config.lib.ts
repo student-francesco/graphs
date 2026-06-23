@@ -4,6 +4,11 @@ import dts from 'vite-plugin-dts'
 
 export default defineConfig({
   plugins: [dts({ include: ['src/lib'], exclude: ['**/*.test.ts'] })],
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src'),
+    },
+  },
   publicDir: false,
   build: {
     lib: {

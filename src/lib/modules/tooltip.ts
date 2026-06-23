@@ -1,9 +1,9 @@
-import { renderStep, type ChartModule } from '../engine/index.ts'
-import { TooltipController } from '../tooltip.ts'
-import type { SeriesDataPoint } from '../types.ts'
+import { renderStep, type ChartModule } from '@/lib/engine/index.ts'
+import { TooltipController } from '@/lib/tooltip.ts'
+import type { InternalDataPoint } from '@/lib/types.ts'
 import { HasData, Scales, Settings, VisibleSeries } from './tokens.ts'
 
-interface HoverDatum extends SeriesDataPoint {
+interface HoverDatum extends InternalDataPoint {
   seriesId: string
   /** Precomputed pixel y — uses the series' own axis scale. */
   _y: number
@@ -62,13 +62,13 @@ export function tooltipModule(): ChartModule {
           for (const s of visible.values()) {
             const yScale = scales.y.get(s.resolved.axisId) ?? scales.y.values().next().value!
             for (const d of s.raw) {
-              allData.push({ ...d, seriesId: s.id, _y: yScale(d.value) })
+              allData.push({ ...d, seriesId: s.id, _y: yScale(d.y) })
             }
           }
 
           const zones = layer
             .selectAll<SVGCircleElement, HoverDatum>('.lc-hover-zone')
-            .data(allData, d => `${d.date.getTime()}-${d.seriesId}`)
+            .data(allData, d => `${+d.x}-${d.seriesId}`)
 
           zones
             .enter()
@@ -79,7 +79,7 @@ export function tooltipModule(): ChartModule {
             .attr('cursor', 'crosshair')
             .merge(zones)
             .attr('r', hitRadius)
-            .attr('cx', d => scales.x(d.date))
+            .attr('cx', d => scales.x(d.x))
             .attr('cy', d => d._y)
             .on('mouseenter', (event: MouseEvent, d: HoverDatum) => {
               controller?.show(event, d, multiSeries ? d.seriesId : undefined)

@@ -1,4 +1,4 @@
-import type { AxisSettings } from '../lib/index.ts'
+import type { AxisSettings } from '@/lib/index.ts'
 import type { Harness } from './state.ts'
 
 /** Axes tab: create/remove/associate axes, updateAxisSettings. */

@@ -4,8 +4,8 @@ import {
   renderStep,
   storeSpec,
   type ChartModule,
-} from '../engine/index.ts'
-import type { ChartMargins } from '../types.ts'
+} from '@/lib/engine/index.ts'
+import type { ChartMargins } from '@/lib/types.ts'
 import {
   ContainerSize,
   D3Ctx,
