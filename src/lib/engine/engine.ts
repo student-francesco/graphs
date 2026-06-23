@@ -134,6 +134,10 @@ export class ChartEngine {
     if (!('explainPlan' in api)) {
       api['explainPlan'] = () => this.plan.explain()
     }
+    if (!('describePrepareSteps' in api)) {
+      api['describePrepareSteps'] = () =>
+        this.plan.waves.flat().map(s => ({ id: s.id, description: s.description }))
+    }
     if (!('setLoggerEnabled' in api)) {
       api['setLoggerEnabled'] = (enabled: boolean) => { this.logger.enabled = enabled }
     }

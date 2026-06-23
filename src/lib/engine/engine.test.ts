@@ -22,9 +22,9 @@ describe('plan resolution', () => {
     const mod: ChartModule = {
       id: 'm',
       prepare: [
-        prepareStep({ id: 'm.c', reads: { b: B }, provides: C, run: ({ b }) => b + 1 }),
-        prepareStep({ id: 'm.a', reads: {}, provides: A, run: () => 1 }),
-        prepareStep({ id: 'm.b', reads: { a: A }, provides: B, run: ({ a }) => a + 1 }),
+        prepareStep({ id: 'm.c', description: 'test fixture step', reads: { b: B }, provides: C, run: ({ b }) => b + 1 }),
+        prepareStep({ id: 'm.a', description: 'test fixture step', reads: {}, provides: A, run: () => 1 }),
+        prepareStep({ id: 'm.b', description: 'test fixture step', reads: { a: A }, provides: B, run: ({ a }) => a + 1 }),
       ],
     }
     const plan = resolvePlan([mod], { sourceTokens: new Set() })
@@ -36,8 +36,8 @@ describe('plan resolution', () => {
     const mod: ChartModule = {
       id: 'm',
       prepare: [
-        prepareStep({ id: 'm.one', reads: {}, provides: T, run: () => 1 }),
-        prepareStep({ id: 'm.two', reads: {}, provides: T, run: () => 2 }),
+        prepareStep({ id: 'm.one', description: 'test fixture step', reads: {}, provides: T, run: () => 1 }),
+        prepareStep({ id: 'm.two', description: 'test fixture step', reads: {}, provides: T, run: () => 2 }),
       ],
     }
     expect(() => resolvePlan([mod], { sourceTokens: new Set() })).toThrow(
@@ -50,7 +50,7 @@ describe('plan resolution', () => {
     const Out = token<number>('out')
     const mod: ChartModule = {
       id: 'm',
-      prepare: [prepareStep({ id: 'm.s', reads: { g: Ghost }, provides: Out, run: () => 0 })],
+      prepare: [prepareStep({ id: 'm.s', description: 'test fixture step', reads: { g: Ghost }, provides: Out, run: () => 0 })],
     }
     expect(() =>
       resolvePlan([mod], {
@@ -66,8 +66,8 @@ describe('plan resolution', () => {
     const mod: ChartModule = {
       id: 'm',
       prepare: [
-        prepareStep({ id: 'm.a', reads: { b: B }, provides: A, run: () => 0 }),
-        prepareStep({ id: 'm.b', reads: { a: A }, provides: B, run: () => 0 }),
+        prepareStep({ id: 'm.a', description: 'test fixture step', reads: { b: B }, provides: A, run: () => 0 }),
+        prepareStep({ id: 'm.b', description: 'test fixture step', reads: { a: A }, provides: B, run: () => 0 }),
       ],
     }
     expect(() => resolvePlan([mod], { sourceTokens: new Set() })).toThrow(/cycle.*split the module/s)
@@ -82,6 +82,7 @@ describe('plan resolution', () => {
       prepare: [
         prepareStep({
           id: 'm.merge',
+          description: 'test fixture step',
           reads: { r: Requests },
           provides: Merged,
           run: ({ r }) => r.reduce((a, b) => a + b, 0),
@@ -89,6 +90,7 @@ describe('plan resolution', () => {
         // reads the merge AND contributes to its inputs — a real cycle
         prepareStep({
           id: 'm.bad',
+          description: 'test fixture step',
           reads: { merged: Merged },
           provides: Bad,
           contributes: [{ to: Requests, select: v => v as number }],
@@ -104,7 +106,7 @@ describe('plan resolution', () => {
     const noop = (): void => {}
     const mod: ChartModule = {
       id: 'm',
-      prepare: [prepareStep({ id: 'm.p', reads: {}, provides: T, run: () => 1 })],
+      prepare: [prepareStep({ id: 'm.p', description: 'test fixture step', reads: {}, provides: T, run: () => 1 })],
       render: [
         renderStep({ id: 'r.late', reads: { t: T }, phase: 'post', order: 0, run: noop }),
         renderStep({ id: 'r.b', reads: { t: T }, layer: { name: 'b', z: 20, host: 'h' }, run: noop }),
@@ -145,6 +147,7 @@ describe('engine execution', () => {
       prepare: [
         prepareStep({
           id: 'counter.double',
+          description: 'Double the counter value.',
           reads: { count: Count },
           provides: Doubled,
           run: ({ count }) => {
@@ -230,6 +233,7 @@ describe('engine execution', () => {
       prepare: [
         prepareStep({
           id: 'a.measure',
+          description: 'test fixture step',
           reads: { noise: Noise },
           provides: SourceA,
           contributes: [{ to: Requests, select: out => ({ top: out.top }) }],
@@ -242,6 +246,7 @@ describe('engine execution', () => {
       prepare: [
         prepareStep({
           id: 'b.measure',
+          description: 'test fixture step',
           reads: {},
           provides: SourceB,
           contributes: [{ to: Requests, select: out => ({ top: out.top }) }],
@@ -254,6 +259,7 @@ describe('engine execution', () => {
       prepare: [
         prepareStep({
           id: 'merge.run',
+          description: 'test fixture step',
           reads: { reqs: Requests },
           provides: Merged,
           run: ({ reqs }) => {
@@ -287,6 +293,7 @@ describe('engine execution', () => {
       prepare: [
         prepareStep({
           id: 'm.wrap',
+          description: 'test fixture step',
           reads: { src: Src },
           provides: Wrapped,
           // treat all even/odd-equal values as unchanged
@@ -326,6 +333,7 @@ describe('engine execution', () => {
       prepare: [
         prepareStep({
           id: 'm.slow',
+          description: 'test fixture step',
           reads: { src: Src },
           provides: Slow,
           run: async ({ src }) => {
@@ -364,6 +372,7 @@ describe('engine execution', () => {
       prepare: [
         prepareStep({
           id: 'm.slow',
+          description: 'test fixture step',
           reads: {},
           provides: Slow,
           cache: false,
@@ -423,6 +432,7 @@ describe('engine execution', () => {
     const text = engine.plan.explain()
     expect(text).toContain('wave 0:')
     expect(text).toContain('counter.double')
+    expect(text).toContain('Double the counter value.')
     expect(text).toContain('render:')
     expect(text).toContain('counter.render')
     engine.destroy()

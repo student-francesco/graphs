@@ -166,6 +166,7 @@ export function contextModule(container: HTMLElement): ChartModule {
     prepare: [
       prepareStep({
         id: 'layout.merge',
+        description: 'Fold all margin requests into the base margins and derive the inner plot box dimensions.',
         reads: { settings: Settings, size: ContainerSize, requests: MarginRequests },
         provides: Layout,
         run: ({ settings, size, requests }): LayoutBox => {

@@ -89,6 +89,7 @@ export function annotationsModule(): ChartModule {
     prepare: [
       prepareStep({
         id: 'annotations.extent',
+        description: 'Read annotations from the store and contribute horizontal-line values to their axis domains.',
         reads: { store: AnnotationStore },
         provides: Decls,
         contributes: [{ to: YDomainValues, select: out => out.yByAxis }],
@@ -109,6 +110,7 @@ export function annotationsModule(): ChartModule {
       }),
       prepareStep({
         id: 'annotations.position',
+        description: 'Project each annotation through the scales into pixel endpoints spanning the plot area.',
         reads: { decls: Decls, scales: Scales, layout: Layout },
         provides: Geometry,
         run: ({ decls, scales, layout }): readonly PlacedAnnotation[] => {

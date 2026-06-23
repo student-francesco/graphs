@@ -13,12 +13,27 @@ export function initModulesTab(h: Harness): void {
 
   implEl.textContent = `module engine — ${h.impl}`
 
-  const modular = h.chart as unknown as { getRegisteredModules(): string[] }
+  const modular = h.chart as unknown as {
+    getRegisteredModules(): string[]
+    describePrepareSteps(): ReadonlyArray<{ id: string; description: string }>
+  }
   listEl.innerHTML = ''
   for (const id of modular.getRegisteredModules()) {
     const li = document.createElement('li')
     li.textContent = `${id} ✓`
     listEl.appendChild(li)
+  }
+
+  const stepsEl = document.getElementById('modules-steps')!
+  stepsEl.innerHTML = ''
+  for (const step of modular.describePrepareSteps()) {
+    const dt = document.createElement('dt')
+    dt.textContent = step.id
+    dt.style.cssText = 'font-weight:600;margin-top:6px'
+    const dd = document.createElement('dd')
+    dd.textContent = step.description
+    dd.style.cssText = 'margin:0 0 0 0;color:#6b7280'
+    stepsEl.append(dt, dd)
   }
 
   btnPlan.addEventListener('click', () => {

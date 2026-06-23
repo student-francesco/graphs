@@ -65,6 +65,7 @@ export function axesStoreModule(): ChartModule {
     prepare: [
       prepareStep({
         id: 'axes.reserve',
+        description: 'List the defined axes and request side margins to fit any secondary/extra axis gutters.',
         reads: { store: AxesStore },
         provides: DefsAndMarginsTok,
         contributes: [{ to: MarginRequests, select: out => out.marginRequest }],
@@ -82,12 +83,14 @@ export function axesStoreModule(): ChartModule {
       }),
       prepareStep({
         id: 'axes.defs',
+        description: 'Expose the axis definitions split out from the margin-reservation step to break the layout cycle.',
         reads: { dm: DefsAndMarginsTok },
         provides: AxesDef,
         run: ({ dm }) => dm.defs,
       }),
       prepareStep({
         id: 'axes.layout',
+        description: 'Resolve per-axis display settings and assign each axis a side and horizontal offset.',
         reads: { defs: AxesDef, settings: Settings, layout: Layout },
         provides: AxisLayouts,
         run: ({ defs, settings, layout }): readonly AxisLayoutEntry[] => {

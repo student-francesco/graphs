@@ -60,6 +60,7 @@ export function animationModule(): ChartModule {
     prepare: [
       prepareStep({
         id: 'animation.ctx',
+        description: 'Resolve the pass’s animation mode, duration and easing from the trigger kind and settings.',
         reads: { trigger: Trigger, settings: Settings },
         provides: AnimationCtx,
         // Helpers are closures; equality is the policy tuple. Consumers keep the

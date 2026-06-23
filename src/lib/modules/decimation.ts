@@ -22,6 +22,7 @@ export function decimationModule(): ChartModule {
     prepare: [
       prepareStep({
         id: 'decimation.apply',
+        description: 'Downsample each smoothed series to its LTTB threshold, memoised per series.',
         reads: { smoothed: SmoothedSeries, visible: VisibleSeries },
         provides: DisplaySeries,
         run: ({ smoothed, visible }): ReadonlyMap<string, readonly SeriesDataPoint[]> => {

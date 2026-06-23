@@ -71,6 +71,7 @@ export function axesRenderModule(): ChartModule {
     prepare: [
       prepareStep({
         id: 'axes.model',
+        description: 'Build the tick positions and formatted labels for every axis, resolving formatter delegates.',
         reads: {
           scales: Scales,
           axisLayouts: AxisLayouts,

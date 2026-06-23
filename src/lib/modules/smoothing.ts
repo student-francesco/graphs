@@ -19,6 +19,7 @@ export function smoothingModule(): ChartModule {
     prepare: [
       prepareStep({
         id: 'smoothing.apply',
+        description: 'Apply each visible series’ moving-average window to its raw points, memoised per series.',
         reads: { visible: VisibleSeries },
         provides: SmoothedSeries,
         run: ({ visible }): ReadonlyMap<string, readonly SeriesDataPoint[]> => {

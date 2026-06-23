@@ -31,6 +31,7 @@ export function scalesModule(): ChartModule {
     prepare: [
       prepareStep({
         id: 'scales.build',
+        description: 'Build the x and per-axis y scales from the domains, layout and zoom/brush view transform.',
         reads: {
           layout: Layout,
           axisLayouts: AxisLayouts,

@@ -35,6 +35,8 @@ export interface ContributionSpec<Out, C> {
 export interface PrepareStep<D extends DepsSpec = DepsSpec, Out = unknown> {
   /** Unique per chart, conventionally '<module>.<step>'. */
   readonly id: string
+  /** Human-readable summary of what this step computes — shown in the plan/debug views. */
+  readonly description: string
   readonly reads: D
   readonly provides: Token<Out>
   readonly contributes?: ReadonlyArray<ContributionSpec<Out, unknown>>

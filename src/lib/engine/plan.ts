@@ -156,6 +156,7 @@ export function resolvePlan(modules: readonly ChartModule[], opts: ResolveOption
         const reads = (Object.values(step.reads) as AnyToken[]).map(t => t.id).join(', ')
         const contributes = (step.contributes ?? []).map(c => ` ⊕${c.to.id}`).join('')
         lines.push(`  ${step.id} (${reads || '∅'}) → ${step.provides.id}${contributes}`)
+        lines.push(`      ${step.description}`)
       }
     })
     lines.push('render:')

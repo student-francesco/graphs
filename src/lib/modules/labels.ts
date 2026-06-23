@@ -40,6 +40,7 @@ export function labelsModule(): ChartModule {
     prepare: [
       prepareStep({
         id: 'labels.measure',
+        description: 'Read title and axis-label text and request the margins needed to fit them.',
         reads: { settings: Settings },
         provides: LabelPlanTok,
         contributes: [{ to: MarginRequests, select: plan => plan.marginRequest }],
@@ -56,6 +57,7 @@ export function labelsModule(): ChartModule {
       }),
       prepareStep({
         id: 'labels.position',
+        description: 'Place the title and axis labels within the merged layout box.',
         reads: { plan: LabelPlanTok, layout: Layout },
         provides: LabelPositions,
         run: ({ plan, layout }): LabelPositions => {

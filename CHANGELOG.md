@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Every prepare step now declares a required `description` summarizing what it computes. The computation plan (`explainPlan()`) prints the description under each step, and the dev harness Modules tab lists prepare steps with their descriptions. New diagnostic handle method `describePrepareSteps()` returns the steps (id + description) in wave order.
+
 ### Fixed
 - Grid no longer flashes a black full-width line across the top of the plot during animation. d3-axis emits a `.domain` spine that (because `tickSize()` also sets the outer tick size) is a full-width box; the removal of it now runs synchronously on the grid selection instead of inside the animated apply, where it was deferred to the transition's end.
 

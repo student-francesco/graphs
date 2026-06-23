@@ -119,6 +119,7 @@ export function seriesModule(): ChartModule {
     prepare: [
       prepareStep({
         id: 'series.hasData',
+        description: 'Report whether any series holds at least one point — renderers gate on this.',
         reads: { store: SeriesStore },
         provides: HasData,
         run: ({ store }) =>
@@ -126,6 +127,7 @@ export function seriesModule(): ChartModule {
       }),
       prepareStep({
         id: 'series.visible',
+        description: 'Resolve the per-series display cascade (axis > series > chart-wide) once per pass, memoised per series.',
         reads: { store: SeriesStore, settings: Settings, axes: AxesDef },
         provides: VisibleSeries,
         run: ({ store, settings, axes }): ReadonlyMap<string, VisibleSeriesEntry> => {
@@ -183,6 +185,7 @@ export function seriesModule(): ChartModule {
       }),
       prepareStep({
         id: 'series.domains',
+        description: 'Collect raw x dates and smoothed y values per axis to contribute the scale domains.',
         reads: { visible: VisibleSeries, smoothed: SmoothedSeries },
         provides: token<{
           dates: readonly Date[]
