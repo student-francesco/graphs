@@ -122,6 +122,17 @@ export function initToolbar(h: Harness): void {
     setLog(`updateSettings({ gridColor: "${gridColorInput.value}" })`)
   })
 
+  const dotBorderColorInput = document.getElementById('dot-border-color') as HTMLInputElement
+  dotBorderColorInput.addEventListener('input', () => {
+    chart.updateSettings({ dotBorderColor: dotBorderColorInput.value })
+    setLog(`updateSettings({ dotBorderColor: "${dotBorderColorInput.value}" })`)
+  })
+  const dotBorderClearBtn = document.getElementById('btn-dot-border-clear') as HTMLButtonElement
+  dotBorderClearBtn.addEventListener('click', () => {
+    chart.updateSettings({ dotBorderColor: null })
+    setLog('updateSettings({ dotBorderColor: null })')
+  })
+
   const zoomModeSelect = document.getElementById('zoom-mode') as HTMLSelectElement
   zoomModeSelect.addEventListener('change', () => {
     const raw = zoomModeSelect.value
