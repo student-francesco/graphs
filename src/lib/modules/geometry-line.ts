@@ -1,7 +1,7 @@
 import * as d3 from 'd3'
 import { renderStep, type ChartModule } from '../engine/index.ts'
 import { CURVE_MAP } from '../d3-maps.ts'
-import type { DataPoint } from '../types.ts'
+import type { SeriesDataPoint } from '../types.ts'
 import { AnimationCtx, DisplaySeries, Scales, VisibleSeries } from './tokens.ts'
 
 /**
@@ -34,7 +34,7 @@ export function geometryLineModule(): ChartModule {
 
             const yScale = scales.y.get(s.resolved.axisId) ?? primary!
             const lineGen = d3
-              .line<DataPoint>()
+              .line<SeriesDataPoint>()
               .x(d => scales.x(d.date))
               .y(d => yScale(d.value))
               .curve(CURVE_MAP[s.resolved.curveType])

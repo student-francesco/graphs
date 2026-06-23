@@ -1,5 +1,5 @@
 import * as d3 from 'd3'
-import type { DataPoint, ChartSettings } from './types.ts'
+import type { SeriesDataPoint, ChartSettings } from './types.ts'
 
 export class TooltipController {
   private readonly el: HTMLDivElement
@@ -32,7 +32,7 @@ export class TooltipController {
     document.body.appendChild(this.el)
   }
 
-  show(event: MouseEvent, point: DataPoint, seriesName?: string): void {
+  show(event: MouseEvent, point: SeriesDataPoint, seriesName?: string): void {
     const namePart = seriesName
       ? `<div style="font-size:11px;opacity:0.75;margin-bottom:2px">${seriesName}</div>`
       : ''

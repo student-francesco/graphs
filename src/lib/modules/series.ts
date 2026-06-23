@@ -9,7 +9,7 @@ import {
   type StoreHandle,
   type Token,
 } from '../engine/index.ts'
-import type { CurveType, DataPoint, RawDataPoint, SeriesSettings } from '../types.ts'
+import type { CurveType, SeriesDataPoint, SeriesDataPointRaw, SeriesSettings } from '../types.ts'
 import {
   AxesDef,
   HasData,
@@ -24,11 +24,11 @@ import {
 /** Per-series state: parsed data plus sparse display overrides (undefined = cascade). */
 export interface SeriesSlice {
   readonly id: string
-  points: DataPoint[]
+  points: SeriesDataPoint[]
   /** Bumped on every data mutation — the cache key for derived per-series data. */
   dataRev: number
   /** Dropped points kept joined for visual continuity (morph/transition/fade mask). */
-  pendingExitPoints: DataPoint[]
+  pendingExitPoints: SeriesDataPoint[]
   /** Bumped when the series must be reborn (insufficient overlap → drawOn fallback). */
   rebirth: number
   axisId: string
@@ -56,13 +56,13 @@ const PALETTE = [
   '#e11d48', '#0891b2', '#16a34a', '#d97706', '#7c3aed', '#db2777', '#0284c7', '#4f46e5',
 ]
 
-export function parseRaw(raw: RawDataPoint): DataPoint {
+export function parseRaw(raw: SeriesDataPointRaw): SeriesDataPoint {
   const d = new Date(raw.date)
   if (isNaN(d.getTime())) throw new Error(`LineChart: invalid date "${raw.date}"`)
   return { date: d, value: raw.value }
 }
 
-function computeOverlap(a: DataPoint[], b: DataPoint[]): number {
+function computeOverlap(a: SeriesDataPoint[], b: SeriesDataPoint[]): number {
   const setA = new Set(a.map(p => p.date.getTime()))
   let count = 0
   for (const p of b) {
@@ -319,7 +319,7 @@ export function seriesModule(): ChartModule {
             series?: Array<{
               id: string
               axisId: string
-              data: RawDataPoint[]
+              data: SeriesDataPointRaw[]
             } & Partial<SeriesSlice>>
             nextPaletteIndex?: number
           }
@@ -379,7 +379,7 @@ function buildSeriesApi(rt: ModuleRuntime): Record<string, (...args: never[]) =>
     (rt.command('axes.resolveId', requested) as string | undefined) ?? DEFAULT_AXIS_ID
 
   /** Trim to settings.maxDataPoints; returns accumulated exit points. */
-  const trimToMaxPoints = (slice: SeriesSlice): DataPoint[] => {
+  const trimToMaxPoints = (slice: SeriesSlice): SeriesDataPoint[] => {
     const max = settings.get().maxDataPoints
     if (max === null || max <= 0 || slice.points.length <= max) return []
     const newExit = slice.points.splice(0, slice.points.length - max)
@@ -414,7 +414,7 @@ function buildSeriesApi(rt: ModuleRuntime): Record<string, (...args: never[]) =>
     return slice
   }
 
-  const setSeriesDataImpl = (id: string, data: RawDataPoint[]): void => {
+  const setSeriesDataImpl = (id: string, data: SeriesDataPointRaw[]): void => {
     const parsed = data.map(parseRaw)
     mutate((series, state) => {
       const slice = ensureSlice(series, state, id)
@@ -424,7 +424,7 @@ function buildSeriesApi(rt: ModuleRuntime): Record<string, (...args: never[]) =>
     }, { kind: 'setData', seriesId: id })
   }
 
-  const updateSeriesDataImpl = (id: string, data: RawDataPoint[]): void => {
+  const updateSeriesDataImpl = (id: string, data: SeriesDataPointRaw[]): void => {
     const incoming = data.map(parseRaw)
     const s = settings.get()
     mutate((series, state) => {
@@ -451,7 +451,7 @@ function buildSeriesApi(rt: ModuleRuntime): Record<string, (...args: never[]) =>
     }, { kind: 'updateData', seriesId: id })
   }
 
-  const appendSeriesDataPointsImpl = (id: string, points: RawDataPoint[]): void => {
+  const appendSeriesDataPointsImpl = (id: string, points: SeriesDataPointRaw[]): void => {
     const parsed = points.map(parseRaw)
     mutate((series, state) => {
       const slice = ensureSlice(series, state, id)
@@ -462,7 +462,7 @@ function buildSeriesApi(rt: ModuleRuntime): Record<string, (...args: never[]) =>
   }
 
   return {
-    setData: (data: RawDataPoint[] | Record<string, RawDataPoint[]>): void => {
+    setData: (data: SeriesDataPointRaw[] | Record<string, SeriesDataPointRaw[]>): void => {
       if (Array.isArray(data)) {
         setSeriesDataImpl('default', data)
       } else {
@@ -472,12 +472,12 @@ function buildSeriesApi(rt: ModuleRuntime): Record<string, (...args: never[]) =>
       }
     },
 
-    updateData: (data: RawDataPoint[]): void => updateSeriesDataImpl('default', data),
+    updateData: (data: SeriesDataPointRaw[]): void => updateSeriesDataImpl('default', data),
 
-    appendDataPoint: (point: RawDataPoint): void =>
+    appendDataPoint: (point: SeriesDataPointRaw): void =>
       appendSeriesDataPointsImpl('default', [point]),
 
-    appendDataPoints: (points: RawDataPoint[]): void =>
+    appendDataPoints: (points: SeriesDataPointRaw[]): void =>
       appendSeriesDataPointsImpl('default', points),
 
     clearData: (): void => {
@@ -512,7 +512,7 @@ function buildSeriesApi(rt: ModuleRuntime): Record<string, (...args: never[]) =>
     setSeriesData: setSeriesDataImpl,
     updateSeriesData: updateSeriesDataImpl,
 
-    appendSeriesDataPoint: (id: string, point: RawDataPoint): void =>
+    appendSeriesDataPoint: (id: string, point: SeriesDataPointRaw): void =>
       appendSeriesDataPointsImpl(id, [point]),
 
     appendSeriesDataPoints: appendSeriesDataPointsImpl,

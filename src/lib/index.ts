@@ -1,6 +1,6 @@
 export type {
-  DataPoint,
-  RawDataPoint,
+  SeriesDataPoint as DataPoint,
+  SeriesDataPointRaw as RawDataPoint,
   ChartSettings,
   ChartMargins,
   CurveType,

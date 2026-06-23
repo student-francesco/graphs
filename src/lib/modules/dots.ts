@@ -1,5 +1,5 @@
 import { renderStep, type ChartModule } from '../engine/index.ts'
-import type { DataPoint } from '../types.ts'
+import type { SeriesDataPoint } from '../types.ts'
 import { AnimationCtx, DisplaySeries, Scales, VisibleSeries } from './tokens.ts'
 
 /**
@@ -37,11 +37,11 @@ export function dotsModule(): ChartModule {
 
             const displayPoints = display.get(s.id) ?? []
             const joinData =
-              s.exit.length > 0 ? [...s.exit, ...displayPoints] : (displayPoints as DataPoint[])
+              s.exit.length > 0 ? [...s.exit, ...displayPoints] : (displayPoints as SeriesDataPoint[])
 
             const yScale = scales.y.get(s.resolved.axisId) ?? primary!
             const dots = g
-              .selectAll<SVGCircleElement, DataPoint>('.lc-dot')
+              .selectAll<SVGCircleElement, SeriesDataPoint>('.lc-dot')
               .data(joinData, d => d.date.getTime())
 
             const enter = dots
@@ -60,8 +60,8 @@ export function dotsModule(): ChartModule {
 
             anim.position(merged, 'marker', sel =>
               sel
-                .attr('cx', (d: DataPoint) => scales.x(d.date))
-                .attr('cy', (d: DataPoint) => yScale(d.value))
+                .attr('cx', (d: SeriesDataPoint) => scales.x(d.date))
+                .attr('cy', (d: SeriesDataPoint) => yScale(d.value))
                 .attr('r', dotRadius),
             )
 

@@ -5,7 +5,7 @@ import type {
   ChartMargins,
   ChartSettings,
   CurveType,
-  DataPoint,
+  SeriesDataPoint,
 } from '../types.ts'
 
 /**
@@ -86,11 +86,11 @@ export interface ResolvedSeriesStyle {
 
 export interface VisibleSeriesEntry {
   readonly id: string
-  readonly raw: readonly DataPoint[]
+  readonly raw: readonly SeriesDataPoint[]
   readonly dataRev: number
   /** Bumped when the series must be reborn (renderers clear its elements). */
   readonly rebirth: number
-  readonly exit: readonly DataPoint[]
+  readonly exit: readonly SeriesDataPoint[]
   readonly resolved: ResolvedSeriesStyle
 }
 
@@ -99,11 +99,11 @@ export const VisibleSeries: Token<ReadonlyMap<string, VisibleSeriesEntry>> =
   token('series.visible')
 
 /** id → points after the smoothing transform (these define the y auto-extent). */
-export const SmoothedSeries: Token<ReadonlyMap<string, readonly DataPoint[]>> =
+export const SmoothedSeries: Token<ReadonlyMap<string, readonly SeriesDataPoint[]>> =
   token('series.smoothed')
 
 /** id → points after all display transforms (smoothing → decimation). */
-export const DisplaySeries: Token<ReadonlyMap<string, readonly DataPoint[]>> =
+export const DisplaySeries: Token<ReadonlyMap<string, readonly SeriesDataPoint[]>> =
   token('series.display')
 
 // ---------------------------------------------------------------------------
@@ -199,9 +199,9 @@ export const YDomainValues: CollectToken<ReadonlyArray<{ axisId: string; values:
 export type GeomRole = 'scrolled' | 'marker' | 'free'
 
 export interface PathSpec {
-  readonly gen: d3.Line<DataPoint>
-  readonly display: readonly DataPoint[]
-  readonly exit: readonly DataPoint[]
+  readonly gen: d3.Line<SeriesDataPoint>
+  readonly display: readonly SeriesDataPoint[]
+  readonly exit: readonly SeriesDataPoint[]
   /** Brand-new paths fall back to a drawOn reveal in morph/transition modes. */
   readonly isNew: boolean
 }

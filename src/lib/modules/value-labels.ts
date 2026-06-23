@@ -1,6 +1,6 @@
 import * as d3 from 'd3'
 import { renderStep, type ChartModule } from '../engine/index.ts'
-import type { DataPoint } from '../types.ts'
+import type { SeriesDataPoint } from '../types.ts'
 import { AnimationCtx, DisplaySeries, Scales, VisibleSeries } from './tokens.ts'
 
 /**
@@ -43,7 +43,7 @@ export function valueLabelsModule(): ChartModule {
             const yScale = scales.y.get(s.resolved.axisId) ?? primary!
 
             const labels = g
-              .selectAll<SVGTextElement, DataPoint>('.lc-label')
+              .selectAll<SVGTextElement, SeriesDataPoint>('.lc-label')
               .data(display.get(s.id) ?? [], d => d.date.getTime())
 
             const enter = labels
@@ -64,8 +64,8 @@ export function valueLabelsModule(): ChartModule {
 
             anim.position(merged, 'free', sel =>
               sel
-                .attr('x', (d: DataPoint) => scales.x(d.date))
-                .attr('y', (d: DataPoint) => yScale(d.value) + offsetY)
+                .attr('x', (d: SeriesDataPoint) => scales.x(d.date))
+                .attr('y', (d: SeriesDataPoint) => yScale(d.value) + offsetY)
                 .style('opacity', 1),
             )
 

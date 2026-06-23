@@ -1,9 +1,9 @@
 import { renderStep, type ChartModule } from '../engine/index.ts'
 import { TooltipController } from '../tooltip.ts'
-import type { DataPoint } from '../types.ts'
+import type { SeriesDataPoint } from '../types.ts'
 import { HasData, Scales, Settings, VisibleSeries } from './tokens.ts'
 
-interface HoverDatum extends DataPoint {
+interface HoverDatum extends SeriesDataPoint {
   seriesId: string
   /** Precomputed pixel y — uses the series' own axis scale. */
   _y: number

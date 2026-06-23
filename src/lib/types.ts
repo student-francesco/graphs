@@ -28,15 +28,20 @@ export type CurveType =
   | 'stepAfter'
 
 /** What Blazor sends over JS interop — C# DateTime serializes to ISO 8601 string */
-export interface RawDataPoint {
+export interface SeriesDataPointRaw {
   date: string
   value: number
 }
 
 /** Internal representation after date parsing */
-export interface DataPoint {
+export interface SeriesDataPoint {
   date: Date
   value: number
+}
+
+export interface NumericDataPoint {
+    x: number
+    y: number
 }
 
 export interface ChartMargins {
@@ -215,7 +220,7 @@ export interface SeriesSnapshot {
   id: string
   axisId: string
   /** ISO 8601 strings — same shape Blazor sends across JS interop. */
-  data: RawDataPoint[]
+  data: SeriesDataPointRaw[]
   color: string | undefined
   lineWeight: number | undefined
   dotRadius: number | undefined
@@ -287,17 +292,23 @@ export interface ChartSnapshot {
 }
 
 /** The object Blazor holds as IJSObjectReference */
-export interface LineChartHandle {
+export interface LineChartHandle
+  extends ChartHandle,
+          AnnotationHandle,
+          SnapshotHandle,
+          SeriesHandle,
+          AxisHandle,
+          ZoomHandle {
   /** Load initial data — hides skeleton and animates chart in */
-  setData(data: RawDataPoint[]): void
+  setData(data: SeriesDataPointRaw[]): void
   /** Load multi-series data — each key becomes a named series */
-  setData(data: Record<string, RawDataPoint[]>): void
+  setData(data: Record<string, SeriesDataPointRaw[]>): void
   /**
    * Smart delta-aware update for live/streaming charts.
    * Computes overlap with existing data; transitions if sufficient overlap,
    * otherwise performs a full replace (equivalent to setData).
    */
-  updateData(data: RawDataPoint[]): void
+  updateData(data: SeriesDataPointRaw[]): void
   /** Live update chart settings and re-render. Changes cascade to all series and axes without per-object overrides. */
   updateSettings(settings: Partial<ChartSettings>): void
   /** Fast path — directly mutates SVG stroke color without full re-render */
@@ -305,52 +316,23 @@ export interface LineChartHandle {
   /** Fast path — directly mutates SVG stroke width without full re-render */
   setLineWeight(weight: number): void
   /** Append a single data point and re-render */
-  appendDataPoint(point: RawDataPoint): void
+  appendDataPoint(point: SeriesDataPointRaw): void
   /** Append multiple data points and re-render once */
-  appendDataPoints(points: RawDataPoint[]): void
-  /** Clear all data and return to skeleton state */
-  clearData(): void
-  /** Export the current chart as a PDF and trigger a browser download */
-  saveToPdf(filename?: string): Promise<void>
-  /** Reset any pan / zoom transform back to identity (animated). No-op when already at identity. */
-  resetZoom(): void
+  appendDataPoints(points: SeriesDataPointRaw[]): void
+}
+
+// --- General chart-agnostic API ---
+interface ChartHandle {
   /** Remove the chart from the DOM and clean up all resources */
   destroy(): void
+  /** Export the current chart as a PDF and trigger a browser download */
+  saveToPdf(filename?: string): Promise<void>
+  /** Clear all data and return to skeleton state */
+  clearData(): void
+}
 
-  // --- Multi-series API ---
-  /** Add a named series; no-op if id already exists */
-  addSeries(id: string, settings?: SeriesSettings): void
-  /** Remove a named series and re-render; 'default' cannot be removed */
-  removeSeries(id: string): void
-  /** Replace the data for a named series; auto-creates the series if absent */
-  setSeriesData(id: string, data: RawDataPoint[]): void
-  /** Delta-aware update for a named series, mirrors updateData */
-  updateSeriesData(id: string, data: RawDataPoint[]): void
-  /** Append a single point to a named series */
-  appendSeriesDataPoint(id: string, point: RawDataPoint): void
-  /** Append multiple points to a named series */
-  appendSeriesDataPoints(id: string, points: RawDataPoint[]): void
-  /** Fast path — mutates stroke color for a named series */
-  setSeriesColor(id: string, color: string): void
-  /** Fast path — mutates stroke width for a named series */
-  setSeriesWeight(id: string, weight: number): void
-  /** Sparse-merge settings into a specific series and re-render. Use undefined values to reset a field to the chart-wide default. */
-  updateSeriesSettings(id: string, settings: Partial<SeriesSettings>): void
-
-  // --- Multi-axis API ---
-  /** Create or update a named y-axis. Sparse — only provided fields are written. */
-  createAxis(name: string, options?: AxisSettings): void
-  /**
-   * Remove a y-axis. Series previously bound to it migrate to the first remaining axis.
-   * No-op when removing the last remaining axis — the chart always keeps at least one.
-   */
-  removeAxis(name: string): void
-  /** Bind a series to an axis. Auto-creates the series if absent. Unknown axis ids are ignored with a warning. */
-  associateSeries(seriesName: string, axisName: string): void
-  /** Sparse-merge settings into a specific axis and re-render. Use undefined values to reset a field to the chart-wide default. */
-  updateAxisSettings(id: string, settings: Partial<AxisSettings>): void
-
-  // --- Annotation API ---
+// --- Annotation API ---
+interface AnnotationHandle {
   /**
    * Create a horizontal line across the chart, pinned to a y-axis.
    * `y` is in the bound axis's value space and the axis treats it like a data point to ensure it remains within the ranges. `settings.axis` selects the axis (defaults to the first axis).
@@ -373,8 +355,10 @@ export interface LineChartHandle {
   removeAnnotation(name: string): void
   /** Remove all annotations from the chart. */
   clearAnnotations(): void
+}
 
-  // --- Snapshot API ---
+// --- Snapshot API ---
+interface SnapshotHandle {
   /**
    * Capture the chart's full mutable state as a JSON-safe snapshot (format
    * version 2: per-module slices). Includes settings (minus the two function
@@ -390,4 +374,47 @@ export interface LineChartHandle {
    * at construction stays in place.
    */
   restoreSnapshot(snapshot: ChartSnapshot): void
+}
+
+// --- Multi-series API ---
+interface SeriesHandle {
+  /** Add a named series; no-op if id already exists */
+  addSeries(id: string, settings?: SeriesSettings): void
+  /** Remove a named series and re-render; 'default' cannot be removed */
+  removeSeries(id: string): void
+  /** Replace the data for a named series; auto-creates the series if absent */
+  setSeriesData(id: string, data: SeriesDataPointRaw[]): void
+  /** Delta-aware update for a named series, mirrors updateData */
+  updateSeriesData(id: string, data: SeriesDataPointRaw[]): void
+  /** Append a single point to a named series */
+  appendSeriesDataPoint(id: string, point: SeriesDataPointRaw): void
+  /** Append multiple points to a named series */
+  appendSeriesDataPoints(id: string, points: SeriesDataPointRaw[]): void
+  /** Fast path — mutates stroke color for a named series */
+  setSeriesColor(id: string, color: string): void
+  /** Fast path — mutates stroke width for a named series */
+  setSeriesWeight(id: string, weight: number): void
+  /** Sparse-merge settings into a specific series and re-render. Use undefined values to reset a field to the chart-wide default. */
+  updateSeriesSettings(id: string, settings: Partial<SeriesSettings>): void
+}
+
+// --- Multi-axis API ---
+interface AxisHandle {
+  /** Create or update a named y-axis. Sparse — only provided fields are written. */
+  createAxis(name: string, options?: AxisSettings): void
+  /**
+   * Remove a y-axis. Series previously bound to it migrate to the first remaining axis.
+   * No-op when removing the last remaining axis — the chart always keeps at least one.
+   */
+  removeAxis(name: string): void
+  /** Bind a series to an axis. Auto-creates the series if absent. Unknown axis ids are ignored with a warning. */
+  associateSeries(seriesName: string, axisName: string): void
+  /** Sparse-merge settings into a specific axis and re-render. Use undefined values to reset a field to the chart-wide default. */
+  updateAxisSettings(id: string, settings: Partial<AxisSettings>): void
+}
+
+// --- Zoom API ---
+interface ZoomHandle {
+  /** Reset any pan / zoom transform back to identity (animated). No-op when already at identity. */
+  resetZoom(): void
 }

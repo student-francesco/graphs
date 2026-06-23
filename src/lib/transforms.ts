@@ -1,6 +1,6 @@
-import type { DataPoint } from './types'
+import type { SeriesDataPoint } from './types'
 
-export function movingAverage(points: DataPoint[], window: number): DataPoint[] {
+export function movingAverage(points: SeriesDataPoint[], window: number): SeriesDataPoint[] {
   if (window <= 1 || points.length === 0) return points
   return points.map((p, i) => {
     const start = Math.max(0, i - window + 1)
@@ -10,10 +10,10 @@ export function movingAverage(points: DataPoint[], window: number): DataPoint[] 
   })
 }
 
-export function lttb(points: DataPoint[], threshold: number): DataPoint[] {
+export function lttb(points: SeriesDataPoint[], threshold: number): SeriesDataPoint[] {
   if (threshold <= 0 || points.length <= threshold) return points
 
-  const sampled: DataPoint[] = [points[0]!]
+  const sampled: SeriesDataPoint[] = [points[0]!]
   const bucketCount = threshold - 2
   const bucketSize = (points.length - 2) / bucketCount
 
