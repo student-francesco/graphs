@@ -1,5 +1,5 @@
 import type { CurveType, RawDataPoint, SeriesSettings } from '@/lib/index.ts'
-import { generateSeries } from './data.ts'
+import { generateSeries, generateNumericSeries } from './data.ts'
 import { PALETTE, type Harness } from './state.ts'
 
 /** Series tab: add/remove/load/append per series, fast paths, updateSeriesSettings. */
@@ -75,9 +75,15 @@ export function initSeriesTab(h: Harness): void {
 
   btnSeriesLoad.addEventListener('click', () => {
     const id = h.activeSeriesId()
-    const data = generateSeries(90)
-    h.seriesDataMap.set(id, data)
-    chart.setSeriesData(id, data)
+    if (h.chartKind === 'numeric') {
+      const data = generateNumericSeries(90)
+      h.seriesDataMap.set(id, data as unknown as RawDataPoint[])
+      chart.setSeriesData(id, data as unknown as RawDataPoint[])
+    } else {
+      const data = generateSeries(90)
+      h.seriesDataMap.set(id, data)
+      chart.setSeriesData(id, data)
+    }
     setLog(`setSeriesData("${id}", […90 points])`)
   })
 
@@ -89,16 +95,23 @@ export function initSeriesTab(h: Harness): void {
       setLog(`No data on series "${id}" — load data first`)
       return
     }
-    const nextDate = new Date(new Date(last.date).getTime() + h.intervalMs())
-    const point: RawDataPoint = {
-      date: nextDate.toISOString(),
-      value: Math.max(1, parseFloat(last.value.toFixed(2)) + (Math.random() - 0.48) * 10),
+    if (h.chartKind === 'numeric') {
+      const step = h.numericXStep()
+      const numLast = last as unknown as { x: number; y: number }
+      const point = { x: numLast.x + step, y: Math.max(1, numLast.y + (Math.random() - 0.48) * 10) }
+      ;(data as unknown as { x: number; y: number }[]).push(point)
+      chart.appendSeriesDataPoint(id, point as unknown as RawDataPoint)
+      setLog(`appendSeriesDataPoint("${id}", { x: ${point.x}, y: ${point.y.toFixed(2)} })`)
+    } else {
+      const nextDate = new Date(new Date(last.date).getTime() + h.intervalMs())
+      const point: RawDataPoint = {
+        date: nextDate.toISOString(),
+        value: Math.max(1, parseFloat(last.value.toFixed(2)) + (Math.random() - 0.48) * 10),
+      }
+      data.push(point)
+      chart.appendSeriesDataPoint(id, point)
+      setLog(`appendSeriesDataPoint("${id}", { date: "${point.date}", value: ${point.value.toFixed(2)} })`)
     }
-    data.push(point)
-    chart.appendSeriesDataPoint(id, point)
-    setLog(
-      `appendSeriesDataPoint("${id}", { date: "${point.date}", value: ${point.value.toFixed(2)} })`,
-    )
   })
 
   let seriesAutoTimer: ReturnType<typeof setInterval> | null = null
@@ -118,14 +131,6 @@ export function initSeriesTab(h: Harness): void {
   })
 
   btnLoadMulti.addEventListener('click', () => {
-    const a = generateSeries(90, new Date('2024-01-01'), 100)
-    const b = generateSeries(90, new Date('2024-01-01'), 60)
-    const c = generateSeries(90, new Date('2024-01-01'), 160)
-    h.seriesDataMap.set('default', a)
-    h.seriesDataMap.set('b', b)
-    h.seriesDataMap.set('c', c)
-
-    // Ensure series b and c exist in the select
     for (const id of ['b', 'c']) {
       if (!seriesSelect.querySelector(`option[value="${id}"]`)) {
         const color = PALETTE[paletteIndex++ % PALETTE.length]!
@@ -134,7 +139,23 @@ export function initSeriesTab(h: Harness): void {
       }
     }
 
-    chart.setData({ default: a, b, c })
+    if (h.chartKind === 'numeric') {
+      const a = generateNumericSeries(90, 0, 100)
+      const b = generateNumericSeries(90, 0, 60)
+      const c = generateNumericSeries(90, 0, 160)
+      h.seriesDataMap.set('default', a as unknown as RawDataPoint[])
+      h.seriesDataMap.set('b', b as unknown as RawDataPoint[])
+      h.seriesDataMap.set('c', c as unknown as RawDataPoint[])
+      chart.setData({ default: a, b, c } as unknown as Record<string, RawDataPoint[]>)
+    } else {
+      const a = generateSeries(90, new Date('2024-01-01'), 100)
+      const b = generateSeries(90, new Date('2024-01-01'), 60)
+      const c = generateSeries(90, new Date('2024-01-01'), 160)
+      h.seriesDataMap.set('default', a)
+      h.seriesDataMap.set('b', b)
+      h.seriesDataMap.set('c', c)
+      chart.setData({ default: a, b, c })
+    }
     setLog('setData({ default: […], b: […], c: […] })')
   })
 

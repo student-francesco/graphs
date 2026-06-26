@@ -1,5 +1,5 @@
 import type { RawDataPoint } from '@/lib/index.ts'
-import { generateSeries, slideWindow } from './data.ts'
+import { generateSeries, generateNumericSeries, slideWindow, slideNumericWindow } from './data.ts'
 import type { Harness } from './state.ts'
 
 /** Header controls: quick colors, append/auto/update/clear/reload, dots, grid, zoom, PDF. */
@@ -17,21 +17,34 @@ export function initToolbar(h: Harness): void {
   })
 
   document.getElementById('btn-append')!.addEventListener('click', () => {
-    const stepMs = h.intervalMs()
     let count = 0
-    h.forEachLiveSeries((id, data) => {
-      const last = data[data.length - 1]
-      if (!last) return
-      const nextDate = new Date(new Date(last.date).getTime() + stepMs)
-      const point: RawDataPoint = {
-        date: nextDate.toISOString(),
-        value: Math.max(1, parseFloat(last.value.toFixed(2)) + (Math.random() - 0.48) * 10),
-      }
-      data.push(point)
-      chart.appendSeriesDataPoint(id, point)
-      count++
-    })
-    if (count > 0) setLog(`appendSeriesDataPoint(…) × ${count} series (+${h.intervalLabel()})`)
+    if (h.chartKind === 'numeric') {
+      const step = h.numericXStep()
+      h.forEachLiveSeries((id, data) => {
+        const last = data[data.length - 1] as unknown as { x: number; y: number }
+        if (!last) return
+        const point = { x: last.x + step, y: Math.max(1, last.y + (Math.random() - 0.48) * 10) }
+        ;(data as unknown as { x: number; y: number }[]).push(point)
+        chart.appendSeriesDataPoint(id, point as unknown as RawDataPoint)
+        count++
+      })
+      if (count > 0) setLog(`appendSeriesDataPoint(…) × ${count} series (+${step})`)
+    } else {
+      const stepMs = h.intervalMs()
+      h.forEachLiveSeries((id, data) => {
+        const last = data[data.length - 1]
+        if (!last) return
+        const nextDate = new Date(new Date(last.date).getTime() + stepMs)
+        const point: RawDataPoint = {
+          date: nextDate.toISOString(),
+          value: Math.max(1, parseFloat(last.value.toFixed(2)) + (Math.random() - 0.48) * 10),
+        }
+        data.push(point)
+        chart.appendSeriesDataPoint(id, point)
+        count++
+      })
+      if (count > 0) setLog(`appendSeriesDataPoint(…) × ${count} series (+${h.intervalLabel()})`)
+    }
   })
 
   let autoAppendTimer: ReturnType<typeof setInterval> | null = null
@@ -54,31 +67,56 @@ export function initToolbar(h: Harness): void {
   })
 
   document.getElementById('btn-append-batch')!.addEventListener('click', () => {
-    const stepMs = h.intervalMs()
     let count = 0
-    h.forEachLiveSeries((id, data) => {
-      const last = data[data.length - 1]
-      if (!last) return
-      const nextDate = new Date(new Date(last.date).getTime() + stepMs)
-      const batch = generateSeries(5, nextDate, parseFloat(last.value.toFixed(2)), stepMs)
-      data.push(...batch)
-      chart.appendSeriesDataPoints(id, batch)
-      count++
-    })
-    if (count > 0) setLog(`appendSeriesDataPoints(…, 5) × ${count} series (+${h.intervalLabel()} steps)`)
+    if (h.chartKind === 'numeric') {
+      const step = h.numericXStep()
+      h.forEachLiveSeries((id, data) => {
+        const last = data[data.length - 1] as unknown as { x: number; y: number }
+        if (!last) return
+        const batch = generateNumericSeries(5, last.x + step, last.y, step)
+        ;(data as unknown as { x: number; y: number }[]).push(...batch)
+        chart.appendSeriesDataPoints(id, batch as unknown as RawDataPoint[])
+        count++
+      })
+      if (count > 0) setLog(`appendSeriesDataPoints(…, 5) × ${count} series (+${h.numericXStep()} steps)`)
+    } else {
+      const stepMs = h.intervalMs()
+      h.forEachLiveSeries((id, data) => {
+        const last = data[data.length - 1]
+        if (!last) return
+        const nextDate = new Date(new Date(last.date).getTime() + stepMs)
+        const batch = generateSeries(5, nextDate, parseFloat(last.value.toFixed(2)), stepMs)
+        data.push(...batch)
+        chart.appendSeriesDataPoints(id, batch)
+        count++
+      })
+      if (count > 0) setLog(`appendSeriesDataPoints(…, 5) × ${count} series (+${h.intervalLabel()} steps)`)
+    }
   })
 
   document.getElementById('btn-update')!.addEventListener('click', () => {
-    const stepMs = h.intervalMs()
     let count = 0
-    for (const [id, data] of h.seriesDataMap.entries()) {
-      if (data.length === 0) continue
-      const shifted = slideWindow(data, 7, stepMs)
-      h.seriesDataMap.set(id, shifted)
-      chart.updateSeriesData(id, shifted)
-      count++
+    if (h.chartKind === 'numeric') {
+      const step = h.numericXStep()
+      for (const [id, data] of h.seriesDataMap.entries()) {
+        if (data.length === 0) continue
+        const shifted = slideNumericWindow(data as unknown as { x: number; y: number }[], 7, step)
+        h.seriesDataMap.set(id, shifted as unknown as RawDataPoint[])
+        chart.updateSeriesData(id, shifted as unknown as RawDataPoint[])
+        count++
+      }
+      if (count > 0) setLog(`updateSeriesData(…, window slide 7 × ${step}) × ${count} series`)
+    } else {
+      const stepMs = h.intervalMs()
+      for (const [id, data] of h.seriesDataMap.entries()) {
+        if (data.length === 0) continue
+        const shifted = slideWindow(data, 7, stepMs)
+        h.seriesDataMap.set(id, shifted)
+        chart.updateSeriesData(id, shifted)
+        count++
+      }
+      if (count > 0) setLog(`updateSeriesData(…, window slide 7 × ${h.intervalLabel()}) × ${count} series`)
     }
-    if (count > 0) setLog(`updateSeriesData(…, window slide 7 × ${h.intervalLabel()}) × ${count} series`)
   })
 
   document.getElementById('btn-clear')!.addEventListener('click', () => {
@@ -89,17 +127,28 @@ export function initToolbar(h: Harness): void {
   })
 
   document.getElementById('btn-reload')!.addEventListener('click', () => {
-    const payload: Record<string, RawDataPoint[]> = {}
-    // Use the start value already associated with each series so reload feels stable per axis.
     const baseStart: Record<string, number> = { default: 100 }
-    for (const id of h.seriesDataMap.keys()) {
-      const start = baseStart[id] ?? 50 + Math.random() * 150
-      const data = generateSeries(90, new Date('2024-01-01'), start)
-      h.seriesDataMap.set(id, data)
-      payload[id] = data
+    if (h.chartKind === 'numeric') {
+      const numPayload: Record<string, { x: number; y: number }[]> = {}
+      for (const id of h.seriesDataMap.keys()) {
+        const start = baseStart[id] ?? 50 + Math.random() * 150
+        const data = generateNumericSeries(90, 0, start)
+        h.seriesDataMap.set(id, data as unknown as RawDataPoint[])
+        numPayload[id] = data
+      }
+      chart.setData(numPayload as unknown as Record<string, RawDataPoint[]>)
+      setLog(`setData({ ${Object.keys(numPayload).map(k => `${k}: […]`).join(', ')} })`)
+    } else {
+      const payload: Record<string, RawDataPoint[]> = {}
+      for (const id of h.seriesDataMap.keys()) {
+        const start = baseStart[id] ?? 50 + Math.random() * 150
+        const data = generateSeries(90, new Date('2024-01-01'), start)
+        h.seriesDataMap.set(id, data)
+        payload[id] = data
+      }
+      chart.setData(payload)
+      setLog(`setData({ ${Object.keys(payload).map(k => `${k}: […]`).join(', ')} })`)
     }
-    chart.setData(payload)
-    setLog(`setData({ ${Object.keys(payload).map(k => `${k}: […]`).join(', ')} })`)
   })
 
   let dotsOn = true

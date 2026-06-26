@@ -39,3 +39,29 @@ export function generateExpSeries(days: number, startDate = new Date('2024-01-01
   }
   return points
 }
+
+export function generateNumericSeries(
+  count: number,
+  startX = 0,
+  startY = 100,
+  stepX = 1,
+): { x: number; y: number }[] {
+  const points: { x: number; y: number }[] = []
+  let y = startY
+  for (let i = 0; i < count; i++) {
+    y += (Math.random() - 0.48) * 10
+    points.push({ x: startX + i * stepX, y: Math.max(1, y) })
+  }
+  return points
+}
+
+export function slideNumericWindow(
+  data: { x: number; y: number }[],
+  steps: number,
+  stepX = 1,
+): { x: number; y: number }[] {
+  const sliced = data.slice(steps)
+  const last = sliced[sliced.length - 1]!
+  const tail = generateNumericSeries(steps, last.x + stepX, last.y, stepX)
+  return [...sliced, ...tail]
+}

@@ -40,12 +40,18 @@ export function initLineTab(h: Harness): void {
     setLog(`updateSettings({ yScaleType: "${yScaleType}" })`)
   })
 
-  document.getElementById('btn-load-exp')!.addEventListener('click', () => {
-    const data = generateExpSeries(60)
-    h.seriesDataMap.set('default', data)
-    chart.setData(data)
-    setLog('setData(exponential data — good for log scale)')
-  })
+  const btnLoadExp = document.getElementById('btn-load-exp')!
+  if (h.chartKind === 'numeric') {
+    btnLoadExp.setAttribute('disabled', '')
+    btnLoadExp.title = 'Not available in numeric mode'
+  } else {
+    btnLoadExp.addEventListener('click', () => {
+      const data = generateExpSeries(60)
+      h.seriesDataMap.set('default', data)
+      chart.setData(data)
+      setLog('setData(exponential data — good for log scale)')
+    })
+  }
 
   const yTickCountInput = document.getElementById('y-tick-count') as HTMLInputElement
   yTickCountInput.addEventListener('change', () => {

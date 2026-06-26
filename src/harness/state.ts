@@ -13,6 +13,7 @@ export interface AxisRecord {
  */
 export interface Harness {
   chart: LineChartHandle
+  chartKind: 'temporal' | 'numeric'
   impl: 'monolith' | 'modules'
   setLog(msg: string): void
   /** Per-series data store for append operations */
@@ -27,6 +28,8 @@ export interface Harness {
   intervalMs(): number
   /** Human-readable form of the current interval, e.g. "1 days" — for the log line. */
   intervalLabel(): string
+  /** Numeric x step from the interval-amount control (unit-free; ignores the unit select). */
+  numericXStep(): number
 }
 
 /** Palette matching the one used by the library for visual consistency */
@@ -34,11 +37,16 @@ export const PALETTE = [
   '#e11d48', '#0891b2', '#16a34a', '#d97706', '#7c3aed', '#db2777', '#0284c7', '#4f46e5',
 ]
 
-export function createHarness(chart: LineChartHandle, impl: Harness['impl']): Harness {
+export function createHarness(
+  chart: LineChartHandle,
+  impl: Harness['impl'],
+  chartKind: 'temporal' | 'numeric' = 'temporal',
+): Harness {
   const log = document.getElementById('log')!
   const seriesDataMap = new Map<string, RawDataPoint[]>([['default', []]])
   return {
     chart,
+    chartKind,
     impl,
     setLog: msg => {
       log.textContent = msg
@@ -63,6 +71,10 @@ export function createHarness(chart: LineChartHandle, impl: Harness['impl']): Ha
       const unitSelect = document.getElementById('interval-unit') as HTMLSelectElement
       const unit = unitSelect.options[unitSelect.selectedIndex]?.text ?? 'days'
       return `${amount} ${unit}`
+    },
+    numericXStep: () => {
+      const v = parseFloat((document.getElementById('interval-amount') as HTMLInputElement).value)
+      return Number.isFinite(v) && v > 0 ? v : 1
     },
   }
 }

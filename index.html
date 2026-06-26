@@ -107,7 +107,13 @@
     <div class="harness-header">
       <div class="header-top">
         <h1>LineChart Dev Harness</h1>
-        <button id="btn-save-pdf">Save PDF</button>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="btn-group" id="chart-type-toggle">
+            <button id="btn-chart-temporal">Temporal</button>
+            <button id="btn-chart-numeric">Numeric</button>
+          </div>
+          <button id="btn-save-pdf">Save PDF</button>
+        </div>
       </div>
       <div class="controls-row">
         <!-- quick color picks -->
@@ -522,6 +528,20 @@
           btn.classList.add('active')
           document.getElementById('tab-' + target).classList.add('active')
         })
+      })
+
+      // Chart type toggle — reloads the page with ?chart=temporal|numeric
+      const _chartKind = new URLSearchParams(location.search).get('chart') ?? 'temporal'
+      document.getElementById('btn-chart-' + _chartKind).classList.add('active')
+      document.getElementById('btn-chart-temporal').addEventListener('click', () => {
+        const url = new URL(location.href)
+        url.searchParams.set('chart', 'temporal')
+        location.href = url.toString()
+      })
+      document.getElementById('btn-chart-numeric').addEventListener('click', () => {
+        const url = new URL(location.href)
+        url.searchParams.set('chart', 'numeric')
+        location.href = url.toString()
       })
     </script>
     <script type="module" src="/src/main.ts"></script>
