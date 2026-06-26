@@ -22,6 +22,10 @@ export function exportModule(): ChartModule {
           const overlaySvg = ctx.overlaySvg.node()
 
           const mainClone = mainSvg.cloneNode(true) as SVGSVGElement
+          // Replace percentage dimensions with explicit pixels so the browser
+          // knows the intrinsic size when the SVG is loaded as an <img>.
+          mainClone.setAttribute('width', String(width))
+          mainClone.setAttribute('height', String(height))
           if (overlaySvg) {
             const overlayClone = overlaySvg.cloneNode(true) as SVGSVGElement
             const overlayG = document.createElementNS('http://www.w3.org/2000/svg', 'g')
@@ -48,7 +52,7 @@ export function exportModule(): ChartModule {
           await new Promise<void>((resolve, reject) => {
             const img = new Image()
             img.onload = () => {
-              canvasCtx.drawImage(img, 0, 0)
+              canvasCtx.drawImage(img, 0, 0, width, height)
               URL.revokeObjectURL(url)
               resolve()
             }
