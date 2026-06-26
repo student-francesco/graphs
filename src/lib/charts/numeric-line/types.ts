@@ -10,7 +10,7 @@ import type {
 } from '@/lib/types.ts'
 
 /** The object Blazor holds as IJSObjectReference */
-export interface NumericLineChartHandle
+export interface NumericChartHandle
   extends ChartHandle,
           AnnotationHandle,
           SnapshotHandle,

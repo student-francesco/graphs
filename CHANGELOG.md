@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2026-06-26
+
+### Added
+- `createNumericChart`, `NumericChartHandle`, and `NumericDataPoint` are now exported from the package index (`index.ts` / `graphs.es.js`). The 0.4.0 bundle contained the implementation but the public surface was not wired into the entry point.
+
 ## [0.4.0] - 2026-06-26
 
 ### Added
