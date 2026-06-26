@@ -5,6 +5,7 @@ import type { ComputationPlan } from './plan.ts'
 import type { StoreRegistry } from './store.ts'
 import { Trigger, type AnyToken, type TriggerInfo } from './token.ts'
 import type { PassLogger } from './debug.ts'
+import type { Profiler } from './profiler.ts'
 
 interface TokenState {
   value: unknown
@@ -46,6 +47,7 @@ export class Executor {
   private readonly layers: LayerManager
   private readonly signal: AbortSignal
   private readonly log: PassLogger
+  private readonly profiler: Profiler
 
   constructor(
     plan: ComputationPlan,
@@ -53,12 +55,14 @@ export class Executor {
     layers: LayerManager,
     signal: AbortSignal,
     log: PassLogger,
+    profiler: Profiler,
   ) {
     this.plan = plan
     this.stores = stores
     this.layers = layers
     this.signal = signal
     this.log = log
+    this.profiler = profiler
   }
 
   runPass(trigger: TriggerInfo): void | Promise<void> {
@@ -92,7 +96,7 @@ export class Executor {
           continue
         }
         const { deps, inputRevs } = this.resolveDeps(step.reads)
-        const out = step.run(deps, ctx)
+        const out = this.profiler.measure('prepare', () => step.run(deps, ctx))
         if (isThenable(out)) {
           this.log.step(ctx.passId, step.id, 'ran-async', dirtyReason)
           pending.push(out.then(value => this.commitPrepare(step, value, inputRevs)))
@@ -132,9 +136,10 @@ export class Executor {
         trigger: ctx.trigger,
       }
       this.log.render(ctx.passId, step.id, true, dirtyReason)
-      step.run(deps, renderCtx)
+      this.profiler.measure('render', () => step.run(deps, renderCtx))
       this.renderState.set(step.id, { hasRun: true, lastInputRevs: inputRevs })
     }
+    this.profiler.markPass()
     this.log.passEnd(ctx.passId)
   }
 

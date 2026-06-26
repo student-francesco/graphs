@@ -51,4 +51,66 @@ export function initModulesTab(h: Harness): void {
     btnLogger.classList.toggle('active', loggerOn)
     h.setLog(`Pass logger ${loggerOn ? 'enabled' : 'disabled'}.`)
   })
+
+  initProfiler(h)
+}
+
+interface ProfilerStats {
+  passes: number
+  prepare: { totalMs: number; steps: number }
+  render: { totalMs: number; steps: number }
+}
+
+/**
+ * Profiler debug toggle: while enabled, polls accumulated prepare/render timings
+ * and renders them. The numbers grow as passes run, so a live poll beats a
+ * one-shot read on toggle.
+ */
+function initProfiler(h: Harness): void {
+  const btnProfiler = document.getElementById('btn-toggle-profiler')!
+  const btnReset = document.getElementById('btn-reset-profiler')!
+  const outEl = document.getElementById('profiler-output')!
+
+  const chart = h.chart as unknown as {
+    setProfilerEnabled(on: boolean): void
+    getProfilerStats(): ProfilerStats
+    resetProfiler(): void
+  }
+
+  let on = false
+  let timer: ReturnType<typeof setInterval> | undefined
+
+  const fmt = (ms: number): string => `${ms.toFixed(2)} ms`
+  const avg = (ms: number, n: number): string => (n === 0 ? '—' : `${(ms / n).toFixed(3)} ms`)
+
+  const refresh = (): void => {
+    const s = chart.getProfilerStats()
+    outEl.textContent =
+      `passes:  ${s.passes}\n` +
+      `prepare: ${fmt(s.prepare.totalMs)} over ${s.prepare.steps} steps (avg ${avg(s.prepare.totalMs, s.prepare.steps)})\n` +
+      `render:  ${fmt(s.render.totalMs)} over ${s.render.steps} steps (avg ${avg(s.render.totalMs, s.render.steps)})\n` +
+      `total:   ${fmt(s.prepare.totalMs + s.render.totalMs)}`
+  }
+
+  btnProfiler.addEventListener('click', () => {
+    on = !on
+    chart.setProfilerEnabled(on)
+    btnProfiler.textContent = on ? 'Disable profiler' : 'Enable profiler'
+    btnProfiler.classList.toggle('active', on)
+    if (on) {
+      refresh()
+      timer = setInterval(refresh, 500)
+    } else {
+      if (timer !== undefined) clearInterval(timer)
+      timer = undefined
+      outEl.textContent = ''
+    }
+    h.setLog(`Profiler ${on ? 'enabled' : 'disabled'}.`)
+  })
+
+  btnReset.addEventListener('click', () => {
+    chart.resetProfiler()
+    if (on) refresh()
+    h.setLog('Profiler counters reset.')
+  })
 }

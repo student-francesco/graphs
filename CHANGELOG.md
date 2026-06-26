@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Engine performance profiler that accumulates wall-clock time spent in prepare steps vs render steps across passes. New diagnostic handle methods `setProfilerEnabled(on)`, `getProfilerStats()` (returns `{ passes, prepare: { totalMs, steps }, render: { totalMs, steps } }`), and `resetProfiler()`; enabling resets the counters. Surfaced in the dev harness Modules tab behind an "Enable profiler" toggle with a live readout. Disabled by default — timing wrappers are no-ops when off.
 - Every prepare step now declares a required `description` summarizing what it computes. The computation plan (`explainPlan()`) prints the description under each step, and the dev harness Modules tab lists prepare steps with their descriptions. New diagnostic handle method `describePrepareSteps()` returns the steps (id + description) in wave order.
 
 ### Fixed

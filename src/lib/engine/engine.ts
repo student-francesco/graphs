@@ -1,5 +1,6 @@
 import { PassLogger } from './debug.ts'
 import { Executor } from './executor.ts'
+import { Profiler } from './profiler.ts'
 import { LayerManager } from './layers.ts'
 import type { ChartModule, ModuleRuntime } from './module.ts'
 import { resolvePlan, type ComputationPlan } from './plan.ts'
@@ -22,6 +23,7 @@ export interface EngineOptions {
  */
 export class ChartEngine {
   readonly logger = new PassLogger()
+  readonly profiler = new Profiler()
   readonly layers = new LayerManager()
   readonly plan: ComputationPlan
   readonly modules: readonly ChartModule[]
@@ -70,6 +72,7 @@ export class ChartEngine {
       this.layers,
       this.abort.signal,
       this.logger,
+      this.profiler,
     )
 
     const rt = this.runtime()
@@ -140,6 +143,15 @@ export class ChartEngine {
     }
     if (!('setLoggerEnabled' in api)) {
       api['setLoggerEnabled'] = (enabled: boolean) => { this.logger.enabled = enabled }
+    }
+    if (!('setProfilerEnabled' in api)) {
+      api['setProfilerEnabled'] = (enabled: boolean) => { this.profiler.setEnabled(enabled) }
+    }
+    if (!('getProfilerStats' in api)) {
+      api['getProfilerStats'] = () => this.profiler.stats()
+    }
+    if (!('resetProfiler' in api)) {
+      api['resetProfiler'] = () => { this.profiler.reset() }
     }
     return api
   }
