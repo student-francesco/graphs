@@ -18,6 +18,16 @@ const ALLOWED = [
   /^\.\.\/skeleton\.ts$/,
   /^\.\.\/tooltip\.ts$/,
   /^\.\.\/pdf\.ts$/,
+  // @/ alias equivalents (@ → src/)
+  /^@\/lib\/engine\//,
+  /^@\/lib\/modules\/tokens\.ts$/,
+  /^@\/lib\/types\.ts$/,
+  /^@\/lib\/defaults\.ts$/,
+  /^@\/lib\/d3-maps\.ts$/,
+  /^@\/lib\/transforms\.ts$/,
+  /^@\/lib\/skeleton\.ts$/,
+  /^@\/lib\/tooltip\.ts$/,
+  /^@\/lib\/pdf\.ts$/,
 ]
 
 let failures = 0
