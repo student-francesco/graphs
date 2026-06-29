@@ -4,12 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-29
+
 ### Added
 - Engine performance profiler that accumulates wall-clock time spent in prepare steps vs render steps across passes. New diagnostic handle methods `setProfilerEnabled(on)`, `getProfilerStats()` (returns `{ passes, prepare: { totalMs, steps }, render: { totalMs, steps } }`), and `resetProfiler()`; enabling resets the counters. Surfaced in the dev harness Modules tab behind an "Enable profiler" toggle with a live readout. Disabled by default — timing wrappers are no-ops when off.
 - Every prepare step now declares a required `description` summarizing what it computes. The computation plan (`explainPlan()`) prints the description under each step, and the dev harness Modules tab lists prepare steps with their descriptions. New diagnostic handle method `describePrepareSteps()` returns the steps (id + description) in wave order.
 
 ### Fixed
 - Grid no longer flashes a black full-width line across the top of the plot during animation. d3-axis emits a `.domain` spine that (because `tickSize()` also sets the outer tick size) is a full-width box; the removal of it now runs synchronously on the grid selection instead of inside the animated apply, where it was deferred to the transition's end.
+
+### Changed
+- NuGet package renamed from `Graphs` to `Inficon.Graphs`.
 
 ## [0.3.0] - 2026-06-12
 

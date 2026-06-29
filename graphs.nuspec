@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
     <metadata>
-        <id>Graphs</id>
-        <version>0.3.0</version>
+        <id>Inficon.Graphs</id>
+        <version>1.0.0</version>
         <authors>Francesco Baciu</authors>
         <owners>INFICON AG</owners>
         <description>JavaScript module file for D3 graphs</description>
@@ -10,8 +10,8 @@
         <readme>README.MD</readme>
     </metadata>
     <files>
-        <file src="dist\lib\graphs.es.js" target="content\Scripts\graphs.es.js" />
-        <file src="Graphs.targets" target="build\Graphs.targets" />
+        <file src="dist\lib\graphs.es.js" target="content\Scripts\Inficon.Graphs.es.js" />
+        <file src="Inficon.Graphs.targets" target="build\Inficon.Graphs.targets" />
         <file src="README.MD" target="" />
     </files>
 </package>

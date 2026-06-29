@@ -1,0 +1,8 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Target Name="CopyGraphsToWwwroot" AfterTargets="Build">
+    <Message Importance="high" Text="Copying Inficon.Graphs.es.js from NuGet package to wwwroot..." />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\content\Scripts\Inficon.Graphs.es.js"
+          DestinationFiles="$(MSBuildProjectDirectory)\wwwroot\Inficon.Graphs.es.js"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>
