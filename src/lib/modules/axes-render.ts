@@ -172,7 +172,7 @@ export function axesRenderModule(): ChartModule {
       }),
 
       renderStep({
-        id: 'axes.xTicks',
+        id: 'axes.abscissa',
         reads: { model: AxisModel, layout: Layout, anim: AnimationCtx },
         layer: { name: 'x-ticks', z: 15, host: 'scroll' },
         run: ({ model, layout, anim }, ctx) => {
@@ -199,8 +199,6 @@ export function axesRenderModule(): ChartModule {
             .attr('text-anchor', 'middle')
 
           const merged = enter.merge(ticks)
-          // Labels come from the resolved model for ALL ticks — the monolith
-          // overwrote freshly-applied Blazor labels with the default formatter.
           merged.select('text').text(d => d.label)
           anim.position(merged, 'scrolled', s =>
             s.attr('transform', (d: XTickModel) => `translate(${d.x}, ${innerHeight})`),
@@ -214,7 +212,7 @@ export function axesRenderModule(): ChartModule {
       }),
 
       renderStep({
-        id: 'axes.yRails',
+        id: 'axes.ordinates',
         reads: { model: AxisModel, scales: Scales, layout: Layout, anim: AnimationCtx },
         layer: { name: 'y-axes', z: 85, host: 'overlay' },
         run: ({ model, scales, layout, anim }, ctx) => {
@@ -347,11 +345,7 @@ async function resolveYLabelsAsync(
   delegate: DotNetDelegate,
 ): Promise<string[]> {
   try {
-    // Resolved for exactly the tick values the rail renders — the monolith
-    // resolved for the scale's default ticks and mis-indexed when counts differed.
-    return await Promise.all(
-      tickValues.map((v, i) => delegate.invokeMethodAsync('executeDelegate', v, i)),
-    )
+    // Resolved for exactly the tick values the rail renders — the monolith // resolved for the scale's default ticks and mis-indexed when counts differed. return await Promise.all( tickValues.map((v, i) => delegate.invokeMethodAsync('executeDelegate', v, i)), )
   } catch (e) {
     console.warn('Failed to invoke formatter from Blazor', e)
     return resolveYLabelsSync(tickValues, yScale, axis, { ...settings, yAxisFormatter: null })

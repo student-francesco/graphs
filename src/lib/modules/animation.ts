@@ -19,6 +19,7 @@ import {
   type PathSpec,
   type ReshiftSpec,
   type ScaleBundle,
+  type VisibleSeriesEntry,
 } from './tokens.ts'
 
 /**
@@ -43,7 +44,9 @@ export function animationModule(): ChartModule {
   // Mirrors the monolith's construction-time init: renders within the first
   // animation window use the easeExpOut interrupt easing.
   let lastRenderAt = Date.now()
-  let prevXScale: ScaleBundle['x'] | null = null
+  // The rightmost data x rendered last pass — the next transition measures the
+  // scroll as the gap from this point to the new rightmost point (see scrollPre).
+  let prevLastX: InternalDataPoint['x'] | null = null
   let scrollStartX = 0
   let scrollDelta = 0
   let rtRef: ModuleRuntime | null = null
@@ -108,16 +111,15 @@ export function animationModule(): ChartModule {
           const m = /translate\(\s*(-?[\d.e]+)/.exec(raw)
           const currentX = m ? parseFloat(m[1]!) : 0
 
-          if (prevXScale) {
-            let refX: InternalDataPoint['x'] | undefined
-            for (const s of visible.values()) {
-              if (s.raw.length > 0) {
-                refX = s.raw[0]!.x
-                break
-              }
-            }
-            if (refX !== undefined) {
-              scrollStartX = prevXScale(refX) - scales.x(refX) + currentX
+          // Scroll by the exact gap the newest data opened up: where the previous
+          // rightmost point sits NOW versus where the new rightmost point sits.
+          // Both are read from the CURRENT scale, so mixed-resolution data (points
+          // not evenly spaced) scrolls correctly — there is no assumption that each
+          // appended point is the same pixel distance from the last.
+          if (prevLastX !== null) {
+            const newLastX = rightmostX(visible, scales.x)
+            if (newLastX !== undefined) {
+              scrollStartX = scales.x(newLastX) - scales.x(prevLastX) + currentX
             }
           }
           scrollDelta = currentX - scrollStartX
@@ -131,10 +133,10 @@ export function animationModule(): ChartModule {
 
       renderStep({
         id: 'animation.scrollPost',
-        reads: { anim: AnimationCtx, ctx: D3Ctx, scales: Scales },
+        reads: { anim: AnimationCtx, ctx: D3Ctx, scales: Scales, visible: VisibleSeries },
         phase: 'post',
         alwaysRun: true,
-        run: ({ anim, ctx, scales }, stepCtx) => {
+        run: ({ anim, ctx, scales, visible }, stepCtx) => {
           const scroll = ctx.scrollG
 
           if (anim.mode === 'transition' && anim.duration > 0) {
@@ -165,7 +167,11 @@ export function animationModule(): ChartModule {
             scroll.interrupt().attr('transform', 'translate(0, 0)')
           }
 
-          prevXScale = scales.x
+          // Remember this pass's rightmost point so the next transition measures
+          // the scroll gap from it (see scrollPre). Keep the prior value when the
+          // chart has no data so an empty pass doesn't lose the reference.
+          const lastX = rightmostX(visible, scales.x)
+          if (lastX !== undefined) prevLastX = lastX
           lastRenderAt = stepCtx.now
           // Keep a small number of exit points per series so the left-edge blur
           // is not disturbed; takes effect on the next data-driven join.
@@ -178,6 +184,30 @@ export function animationModule(): ChartModule {
       rtRef = rt
     },
   }
+}
+
+/**
+ * The rightmost data x across visible series (each series' `raw` is x-sorted, so
+ * the last element is its rightmost). Chosen by pixel position so the series that
+ * extends furthest right wins — that point sits at the scale's right edge and
+ * defines how far the chart must scroll when newer data arrives.
+ */
+function rightmostX(
+  visible: ReadonlyMap<string, VisibleSeriesEntry>,
+  xScale: ScaleBundle['x'],
+): InternalDataPoint['x'] | undefined {
+  let best: InternalDataPoint['x'] | undefined
+  let bestPos = -Infinity
+  for (const s of visible.values()) {
+    if (s.raw.length === 0) continue
+    const x = s.raw[s.raw.length - 1]!.x
+    const pos = xScale(x)
+    if (pos > bestPos) {
+      bestPos = pos
+      best = x
+    }
+  }
+  return best
 }
 
 function applyReshift(el: Element, spec: ReshiftSpec | undefined, delta: number): void {
