@@ -1,6 +1,7 @@
 export type {
   TemporalDataPoint as DataPoint,
   TemporalDataPointRaw as RawDataPoint,
+  NumericDataPoint,
   ChartSettings,
   ChartMargins,
   CurveType,
@@ -20,6 +21,8 @@ export type {
   ZoomSnapshot,
 } from './types.ts'
 export type { LineChartHandle } from './charts/line/types.ts'
+export type { NumericChartHandle } from './charts/numeric-line/types.ts'
 export { DEFAULT_SETTINGS } from './defaults.ts'
 export { lttb, movingAverage } from './transforms.ts'
 export { createLineChart } from './charts/line/temporal-line.ts'
+export { createNumericChart } from './charts/numeric-line/numeric-line.ts'

@@ -21,7 +21,7 @@ import { tooltipModule } from '@/lib/modules/tooltip.ts'
 import { valueLabelsModule } from '@/lib/modules/value-labels.ts'
 import { zoomModule } from '@/lib/modules/zoom.ts'
 import type { ChartSettings, NumericDataPoint } from '@/lib/types.ts'
-import type { NumericLineChartHandle } from '@/lib/charts/numeric-line/types.ts'
+import type { NumericChartHandle } from '@/lib/charts/numeric-line/types.ts'
 import { numericAdapter } from '@/lib/adapter'
 
 /**
@@ -72,15 +72,15 @@ export function NUMERIC_LINE_MODULES(container: HTMLElement): ChartModule[] {
  *   var chart  = await module.InvokeAsync<IJSObjectReference>("createLineChart", divId, settings);
  *   await chart.InvokeVoidAsync("setData", data);
  */
-export function createLineChart(
+export function createNumericChart(
   divId: string,
   settings?: Partial<ChartSettings>,
-): NumericLineChartHandle {
+): NumericChartHandle {
   const container = document.getElementById(divId)
-  if (container === null) throw new Error(`LineChart: no element with id "${divId}"`)
+  if (container === null) throw new Error(`NumericChart: no element with id "${divId}"`)
   const engine = new ChartEngine(NUMERIC_LINE_MODULES(container), {
     settings,
     knownProviders: KNOWN_PROVIDERS,
   })
-  return engine.buildApi() as unknown as NumericLineChartHandle
+  return engine.buildApi() as unknown as NumericChartHandle
 }

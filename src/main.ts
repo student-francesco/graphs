@@ -1,5 +1,5 @@
 import { createLineChart as createTemporalLineChart } from './lib/index.ts'
-import { createLineChart as createNumericLineChart } from './lib/charts/numeric-line/numeric-line.ts'
+import { createNumericChart as createNumericLineChart } from './lib/charts/numeric-line/numeric-line.ts'
 import type { LineChartHandle, RawDataPoint } from './lib/index.ts'
 import { generateSeries, generateNumericSeries } from './harness/data.ts'
 import { createHarness } from './harness/state.ts'

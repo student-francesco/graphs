@@ -2,16 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.4.1] - 2026-06-26
 
 ## [1.0.0] - 2026-06-29
 
 ### Added
+- `createNumericChart`, `NumericChartHandle`, and `NumericDataPoint` are now exported from the package index (`index.ts` / `graphs.es.js`). The 0.4.0 bundle contained the implementation but the public surface was not wired into the entry point.
+
+## [0.4.0] - 2026-06-26
+
+### Added
+- **Numeric line chart** (`createNumericChart`) — a second chart type for X/Y numeric data (both axes are `number`, no date parsing). Accepts `NumericDataPoint[]` (`{ x: number, y: number }`); shares the same module engine as the line chart (axes, tooltip, animation, zoom, export, snapshots). New public types: `NumericDataPoint`, `NumericChartHandle`. Surfaced in the dev harness with a dedicated Numeric tab.
 - Engine performance profiler that accumulates wall-clock time spent in prepare steps vs render steps across passes. New diagnostic handle methods `setProfilerEnabled(on)`, `getProfilerStats()` (returns `{ passes, prepare: { totalMs, steps }, render: { totalMs, steps } }`), and `resetProfiler()`; enabling resets the counters. Surfaced in the dev harness Modules tab behind an "Enable profiler" toggle with a live readout. Disabled by default — timing wrappers are no-ops when off.
 - Every prepare step now declares a required `description` summarizing what it computes. The computation plan (`explainPlan()`) prints the description under each step, and the dev harness Modules tab lists prepare steps with their descriptions. New diagnostic handle method `describePrepareSteps()` returns the steps (id + description) in wave order.
+- Pass logger toggle exposed in the dev harness Modules tab (`engine.logger.enabled`) — prints ran/skipped steps with the revision delta that triggered each re-run.
 
 ### Fixed
 - Grid no longer flashes a black full-width line across the top of the plot during animation. d3-axis emits a `.domain` spine that (because `tickSize()` also sets the outer tick size) is a full-width box; the removal of it now runs synchronously on the grid selection instead of inside the animated apply, where it was deferred to the transition's end.
+- PDF export now sets an explicit chart size so the chart fully occupies the exported page rather than rendering at a smaller default size.
 
 ### Changed
 - NuGet package renamed from `Graphs` to `Inficon.Graphs`.
