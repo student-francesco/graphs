@@ -113,7 +113,7 @@ export function scalesModule(): ChartModule {
             descParts.push(`${axis.id}:${axis.scaleType}:${lo}..${hi}/${innerHeight}@${count}`)
           }
 
-          const xTickCount = settings.xTickCount ?? Math.max(2, Math.floor(innerWidth / 80))
+          const xTickCount = settings.xTickCount ?? Math.max(2, Math.floor(innerWidth / 120))
           const xTicks = x.ticks(xTickCount)
           descParts.push(`xt:${xTickCount}`)
 
