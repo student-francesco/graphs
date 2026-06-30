@@ -71,6 +71,8 @@ Factory function that returns a `LineChartHandle` object.
 - `setLineColor(color)`: Fast-path color change without full re-render.
 - `destroy()`: Cleanup DOM and listeners.
 
+Note that iterators or otherwise never-ending data streams are not supported by these functions. You must repeatedly call them if your data changes.
+
 ## Development
 
 - **Start Dev Server**: `npm run dev`
