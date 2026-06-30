@@ -77,7 +77,6 @@ Factory function that returns a `LineChartHandle` object.
 - **Build Library**: `npm run build:lib`
 - **Pack NuGet**: `.\nuget.exe pack graphs.nuspec`
 
-## TODO
-- Support iterators (infinite C# IEnumerables)
-- Support multiple lines
-- Add more chart types
+### Documentation
+There are LLM-generated documentation files in CLAUDE.md, ENGINE.md and MODULES.md which you may read to understand the structure of this codebase.
+They do not serve as architectural guidelines, but instead as an entry point to the current state of the code.
