@@ -345,7 +345,11 @@ async function resolveYLabelsAsync(
   delegate: DotNetDelegate,
 ): Promise<string[]> {
   try {
-    // Resolved for exactly the tick values the rail renders — the monolith // resolved for the scale's default ticks and mis-indexed when counts differed. return await Promise.all( tickValues.map((v, i) => delegate.invokeMethodAsync('executeDelegate', v, i)), )
+    // Resolved for exactly the tick values the rail renders — the monolith
+    // resolved for the scale's default ticks and mis-indexed when counts differed.
+    return await Promise.all(
+      tickValues.map((v, i) => delegate.invokeMethodAsync('executeDelegate', v, i)),
+    )
   } catch (e) {
     console.warn('Failed to invoke formatter from Blazor', e)
     return resolveYLabelsSync(tickValues, yScale, axis, { ...settings, yAxisFormatter: null })
