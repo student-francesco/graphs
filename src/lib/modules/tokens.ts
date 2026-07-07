@@ -252,6 +252,16 @@ export interface AnimationCtxValue {
 
 export const AnimationCtx: Token<AnimationCtxValue> = token('animation.ctx')
 
+/**
+ * Filter id (as a `url(#...)` reference, or null when disabled) that
+ * geometry-line.ts must apply to `.lc-line` so it renders sharp above the x-axis
+ * baseline and blurred within the band beneath it. Owned by axes-render.ts,
+ * which already knows where the baseline sits (Layout.innerHeight) — the filter
+ * itself only depends on that position and the blur settings, never on any
+ * series' actual geometry.
+ */
+export const LineBlurFilter: Token<string | null> = token('axesRender.lineBlurFilter')
+
 /** Hints for plan errors: token id → module that provides it. */
 export const KNOWN_PROVIDERS: ReadonlyMap<string, string> = new Map([
   [D3Ctx.id, 'context'],
@@ -267,4 +277,5 @@ export const KNOWN_PROVIDERS: ReadonlyMap<string, string> = new Map([
   [Scales.id, 'scales'],
   [AnimationCtx.id, 'animation'],
   [ViewTransform.id, 'zoom'],
+  [LineBlurFilter.id, 'axes-render'],
 ])

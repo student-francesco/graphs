@@ -1,6 +1,6 @@
 import { renderStep, type ChartModule } from '@/lib/engine/index.ts'
 import type { InternalDataPoint } from '@/lib/types.ts'
-import { AnimationCtx, DisplaySeries, Scales, VisibleSeries } from './tokens.ts'
+import { AnimationCtx, DisplaySeries, LineBlurFilter, Scales, VisibleSeries } from './tokens.ts'
 
 /**
  * Dot markers per series. The join always includes pending exit points (they
@@ -20,9 +20,10 @@ export function dotsModule(): ChartModule {
           display: DisplaySeries,
           scales: Scales,
           anim: AnimationCtx,
+          lineBlurFilter: LineBlurFilter,
         },
         layer: { name: 'series', z: 30, host: 'scroll' },
-        run: ({ visible, display, scales, anim }, ctx) => {
+        run: ({ visible, display, scales, anim, lineBlurFilter }, ctx) => {
           const layer = ctx.layer!
           const primary = scales.y.values().next().value
           for (const s of visible.values()) {
@@ -57,6 +58,7 @@ export function dotsModule(): ChartModule {
               .merge(dots)
               .attr('fill', s.resolved.color)
               .attr('stroke', s.resolved.dotBorderColor)
+              .attr('filter', lineBlurFilter)
 
             anim.position(merged, 'marker', sel =>
               sel

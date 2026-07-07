@@ -34,6 +34,9 @@ export const DEFAULT_SETTINGS: ChartSettings = {
   yAxisFormatter: null,
   xTickCount: null,
 
+  xAxisBlurEnabled: true,
+  xAxisBlurStrength: 4,
+
   ariaLabel: 'Line chart',
 
   minOverlapForTransition: 2,

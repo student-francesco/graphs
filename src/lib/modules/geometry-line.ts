@@ -2,7 +2,7 @@ import * as d3 from 'd3'
 import { renderStep, type ChartModule } from '@/lib/engine/index.ts'
 import { CURVE_MAP } from '@/lib/d3-maps.ts'
 import type { InternalDataPoint } from '@/lib/types.ts'
-import { AnimationCtx, DisplaySeries, Scales, VisibleSeries } from './tokens.ts'
+import { AnimationCtx, DisplaySeries, LineBlurFilter, Scales, VisibleSeries } from './tokens.ts'
 
 /**
  * The line path per series. Renders into the per-series groups owned by the
@@ -23,9 +23,10 @@ export function geometryLineModule(): ChartModule {
           display: DisplaySeries,
           scales: Scales,
           anim: AnimationCtx,
+          lineBlurFilter: LineBlurFilter,
         },
         layer: { name: 'series', z: 30, host: 'scroll' },
-        run: ({ visible, display, scales, anim }, ctx) => {
+        run: ({ visible, display, scales, anim, lineBlurFilter }, ctx) => {
           const layer = ctx.layer!
           const primary = scales.y.values().next().value
           for (const s of visible.values()) {
@@ -48,6 +49,7 @@ export function geometryLineModule(): ChartModule {
               .attr('stroke-width', s.resolved.lineWeight)
               .attr('stroke-linecap', 'round')
               .attr('stroke-linejoin', 'round')
+              .attr('filter', lineBlurFilter)
 
             anim.renderPath(path, {
               gen: lineGen,

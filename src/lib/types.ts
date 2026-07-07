@@ -197,6 +197,13 @@ export interface ChartSettings extends SeriesSettings, AxisSettings {
   xTickCount: number | null
   ariaLabel: string
 
+  // ── X-axis line blur ───────────────────────────────────────────────────────
+  /** Blurs the portion of each series' line beneath the x-axis baseline, so it
+   *  reads as a soft haze instead of overlapping the crisp tick marks/labels. */
+  xAxisBlurEnabled: boolean
+  /** feGaussianBlur stdDeviation (px) applied within that band. */
+  xAxisBlurStrength: number
+
   // ── updateData delta thresholds ────────────────────────────────────────────
   minOverlapForTransition: number
   overlapThreshold: number

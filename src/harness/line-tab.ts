@@ -66,4 +66,20 @@ export function initLineTab(h: Harness): void {
     chart.updateSettings({ xTickCount })
     setLog(`updateSettings({ xTickCount: ${xTickCount} })`)
   })
+
+  const xAxisBlurEnabledCb = document.getElementById('x-axis-blur-enabled') as HTMLInputElement
+  xAxisBlurEnabledCb.addEventListener('change', () => {
+    const xAxisBlurEnabled = xAxisBlurEnabledCb.checked
+    chart.updateSettings({ xAxisBlurEnabled })
+    setLog(`updateSettings({ xAxisBlurEnabled: ${xAxisBlurEnabled} })`)
+  })
+
+  const xAxisBlurStrengthSlider = document.getElementById('x-axis-blur-strength') as HTMLInputElement
+  const xAxisBlurStrengthDisplay = document.getElementById('x-axis-blur-strength-display')!
+  xAxisBlurStrengthSlider.addEventListener('input', () => {
+    const xAxisBlurStrength = parseFloat(xAxisBlurStrengthSlider.value)
+    xAxisBlurStrengthDisplay.textContent = String(xAxisBlurStrength)
+    chart.updateSettings({ xAxisBlurStrength })
+    setLog(`updateSettings({ xAxisBlurStrength: ${xAxisBlurStrength} })`)
+  })
 }

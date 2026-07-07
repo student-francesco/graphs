@@ -200,6 +200,8 @@ exports[`getSnapshot (v2) > captures the full scenario shape (golden) 1`] = `
       "tooltipDateFormat": "%b %d, %Y",
       "tooltipValueFormat": ".2f",
       "updateDataAnimation": "morph",
+      "xAxisBlurEnabled": true,
+      "xAxisBlurStrength": 4,
       "xLabel": null,
       "xTickCount": null,
       "yLabel": null,

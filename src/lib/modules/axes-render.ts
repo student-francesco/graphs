@@ -4,8 +4,10 @@ import type { ChartSettings } from '@/lib/types.ts'
 import {
   AnimationCtx,
   AxisLayouts,
+  D3Ctx,
   HasData,
   Layout,
+  LineBlurFilter,
   Scales,
   Settings,
   type AxisLayoutEntry,
@@ -64,12 +66,35 @@ const needsDelegate = (formatter: unknown): DotNetDelegate | null =>
  * than the one rendered. Here labels are resolved for exactly the shared tick
  * arrays the chrome renders, and the pass waits for them.
  */
+/** Fixed height (px) of the blurred band beneath the x-axis baseline. */
+const BAND_HEIGHT = 20
+
 export function axesRenderModule(): ChartModule {
+  const uid = Math.random().toString(36).slice(2, 9)
+  const lineBlurFilterId = `lc-line-blur-filter-${uid}`
+
+  let filterSel: d3.Selection<SVGFilterElement, unknown, null, undefined> | null = null
+  let sharpAboveSel: d3.Selection<SVGFEOffsetElement, unknown, null, undefined> | null = null
+  let blurredBandSel: d3.Selection<SVGFEGaussianBlurElement, unknown, null, undefined> | null = null
+
   return {
     id: 'axes-render',
-    defaults: { xAxisFormatter: null, yAxisFormatter: null },
+    defaults: {
+      xAxisFormatter: null,
+      yAxisFormatter: null,
+      xAxisBlurEnabled: true,
+      xAxisBlurStrength: 4,
+    },
 
     prepare: [
+      prepareStep({
+        id: 'axes.lineBlurFilter',
+        description: 'Expose the filter url geometry-line.ts must apply to .lc-line so it blurs beneath the baseline, or null when disabled.',
+        reads: { settings: Settings },
+        provides: LineBlurFilter,
+        run: ({ settings }) => (settings.xAxisBlurEnabled ? `url(#${lineBlurFilterId})` : null),
+      }),
+
       prepareStep({
         id: 'axes.model',
         description: 'Build the tick positions and formatted labels for every axis, resolving formatter delegates.',
@@ -150,6 +175,33 @@ export function axesRenderModule(): ChartModule {
 
     render: [
       renderStep({
+        id: 'axes.lineBlurGeometry',
+        // Sizes the line-blur filter region from the current layout and blur settings.
+        reads: { layout: Layout, settings: Settings },
+        run: ({ layout, settings }) => {
+          if (!filterSel || !sharpAboveSel || !blurredBandSel) return
+          const { innerWidth, innerHeight } = layout
+          const bandHeight = BAND_HEIGHT
+          const pad = 40
+          const x = -pad
+          const width = innerWidth + pad * 2
+
+          filterSel
+            .attr('x', x)
+            .attr('y', -pad)
+            .attr('width', width)
+            .attr('height', innerHeight + bandHeight + pad * 2)
+          sharpAboveSel.attr('x', x).attr('y', -pad).attr('width', width).attr('height', innerHeight + pad)
+          blurredBandSel
+            .attr('x', x)
+            .attr('y', innerHeight)
+            .attr('width', width)
+            .attr('height', bandHeight + pad)
+            .attr('stdDeviation', Math.max(0, settings.xAxisBlurStrength))
+        },
+      }),
+
+      renderStep({
         id: 'axes.baseline',
         reads: { model: AxisModel, layout: Layout },
         layer: { name: 'baseline', z: 10, host: 'chart-area' },
@@ -174,7 +226,11 @@ export function axesRenderModule(): ChartModule {
       renderStep({
         id: 'axes.abscissa',
         reads: { model: AxisModel, layout: Layout, anim: AnimationCtx },
-        layer: { name: 'x-ticks', z: 15, host: 'scroll' },
+        // z above 'series' (30) so tick marks/labels always paint on top of the
+        // line — including the portion of it blurred beneath the baseline —
+        // regardless of the blur setting. Still hosted in 'scroll', so ticks keep
+        // panning with the container exactly as before; only paint order changed.
+        layer: { name: 'x-ticks', z: 35, host: 'scroll' },
         run: ({ model, layout, anim }, ctx) => {
           const g = ctx.layer!
           const innerHeight = layout.innerHeight
@@ -281,6 +337,35 @@ export function axesRenderModule(): ChartModule {
         },
       }),
     ],
+
+    mount(rt) {
+      const ctx = rt.store(D3Ctx).get()
+
+      filterSel = ctx.defs
+        .append('filter')
+        .attr('id', lineBlurFilterId)
+        .attr('filterUnits', 'userSpaceOnUse')
+      sharpAboveSel = filterSel
+        .append('feOffset')
+        .attr('in', 'SourceGraphic')
+        .attr('dx', 0)
+        .attr('dy', 0)
+        .attr('result', 'sharpAboveAxis')
+      blurredBandSel = filterSel
+        .append('feGaussianBlur')
+        .attr('in', 'SourceGraphic')
+        .attr('result', 'blurredBand')
+      const merge = filterSel.append('feMerge')
+      merge.append('feMergeNode').attr('in', 'sharpAboveAxis')
+      merge.append('feMergeNode').attr('in', 'blurredBand')
+
+      return () => {
+        filterSel?.remove()
+        filterSel = null
+        sharpAboveSel = null
+        blurredBandSel = null
+      }
+    },
   }
 }
 
