@@ -204,4 +204,46 @@ export function initToolbar(h: Harness): void {
     chart.saveToPdf('chart')
     setLog('saveToPdf("chart")')
   })
+
+  let multiSeriesAnimationTimer: ReturnType<typeof setInterval> | null = null
+  const btnMultiSeriesAnimation = document.getElementById('btn-multi-series-animation') as HTMLButtonElement
+  btnMultiSeriesAnimation.addEventListener('click', () => {
+    if (multiSeriesAnimationTimer !== null) {
+      clearInterval(multiSeriesAnimationTimer)
+      multiSeriesAnimationTimer = null
+      btnMultiSeriesAnimation.textContent = 'Multi-axis demo'
+      btnMultiSeriesAnimation.classList.remove('active')
+      setLog('Multi-series animation stopped.')
+      return
+    }
+
+    chart.clearData()
+    chart.createAxis('A')
+    chart.createAxis('B')
+    chart.createAxis('C')
+    chart.removeAxis("default");
+    chart.setSeriesData('s-a', [])
+    chart.setSeriesData('s-b', [])
+    chart.setSeriesData('s-c1', [])
+    chart.setSeriesData('s-c2', [])
+    chart.associateSeries('s-a', 'A')
+    chart.associateSeries('s-b', 'B')
+    chart.associateSeries('s-c1', 'C')
+    chart.associateSeries('s-c2', 'C')
+
+    let tick = 0
+    multiSeriesAnimationTimer = setInterval(() => {
+      tick++
+      const date = new Date(2024, 0, tick).toISOString()
+      for (const id of ['s-a', 's-b', 's-c1', 's-c2']) {
+        setTimeout(() => {
+          chart.appendSeriesDataPoint(id, { date, value: Math.random() * 100 })
+        }, Math.random() * 400) // simulate data incoming at random intervals per-series
+      }
+    }, 500)
+
+    btnMultiSeriesAnimation.textContent = 'Stop demo'
+    btnMultiSeriesAnimation.classList.add('active')
+    setLog('Multi-series animation running — 4 series across 3 axes (A, B, C shared by s-c1/s-c2).')
+  })
 }
