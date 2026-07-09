@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 ## Unreleased
 
+## [1.0.1] - 2026-07-09
+
+### Fixed
+- Rebuilt the library so `createNumericChart` (the numeric line chart) is actually present in the shipped `graphs.es.js` / `graphs.umd.js`. The 1.0.0 NuGet package was packed from a stale `dist/lib` build that predated the index.ts export fix, so the export was still missing despite the changelog claiming it was fixed.
+
 ## [1.0.0] - 2026-06-29
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "@inficon/graphs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "main": "dist/lib/graphs.umd.js",
   "module": "dist/lib/graphs.es.js",
