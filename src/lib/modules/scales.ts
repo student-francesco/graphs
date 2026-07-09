@@ -7,10 +7,12 @@ import {
   Scales,
   Settings,
   ViewTransform,
+  VisibleSeries,
   XDomainValues,
   YDomainValues,
   type AxisLayoutEntry,
   type ScaleBundle,
+  type VisibleSeriesEntry,
   type XScale,
   type YScale,
 } from './tokens.ts'
@@ -42,25 +44,42 @@ export function scalesModule(): ChartModule {
           yValues: YDomainValues,
           view: ViewTransform,
           dataKind: DataKind,
+          visible: VisibleSeries,
         },
         provides: Scales,
         equals: (a, b) => a.desc === b.desc,
-        run: ({ layout, axisLayouts, settings, xValues, yValues, view, dataKind }): ScaleBundle => {
+        run: ({ layout, axisLayouts, settings, xValues, yValues, view, dataKind, visible }): ScaleBundle => {
           const { innerWidth, innerHeight } = layout
 
           // x is a time scale for temporal data, a linear scale for numeric data.
           // Pre-data fallback — renderers gate on HasData, but the scale must exist.
           const allX = xValues.flat()
+
+          // Settled right edge. With a `maxDataPoints` cap, hold the domain's UPPER
+          // bound to the newest x that EVERY series has reached (min of per-series
+          // last x), not the single series that appended first. Otherwise a leading
+          // append widens the domain while the others still lag, then it narrows
+          // when they catch up — the domain "breathes" every tick and the x-axis
+          // RESOLUTION (pixels per unit) jitters. Capping the RIGHT edge (and leaving
+          // the LEFT edge at the natural minimum) keeps the window a constant width
+          // that only translates, and crucially does NOT displace the trailing exit
+          // points, which stay anchored to the natural left edge. Only a small lead
+          // (≤2 newer distinct x) is held back, so a genuinely longer series keeps
+          // its full extent; filling / aligned states are untouched.
+          const hiCap = settledUpperBound(allX, visible, settings.maxDataPoints)
+
           let xAuto: XScale
           if (dataKind === 'numeric') {
             const [n0, n1] = d3.extent(allX as number[])
+            const hi = hiCap ?? n1
             const xDomain: [number, number] =
-              n0 !== undefined && n1 !== undefined ? [n0, n1] : [0, 1]
+              n0 !== undefined && hi !== undefined ? [n0, hi] : [0, 1]
             xAuto = d3.scaleLinear().domain(xDomain).range([0, innerWidth])
           } else {
             const [d0, d1] = d3.extent(allX as Date[])
+            const hi = hiCap !== undefined ? new Date(hiCap) : d1
             const xDomain: [Date, Date] =
-              d0 !== undefined && d1 !== undefined ? [d0, d1] : [new Date(0), new Date(86_400_000)]
+              d0 !== undefined && hi !== undefined ? [d0, hi] : [new Date(0), new Date(86_400_000)]
             xAuto = d3.scaleTime().domain(xDomain).range([0, innerWidth])
           }
 
@@ -122,6 +141,38 @@ export function scalesModule(): ChartModule {
       }),
     ],
   }
+}
+
+/**
+ * The x upper bound to display when a `maxDataPoints` rolling cap is active: the
+ * newest x that EVERY series has reached, so a single series appending ahead of the
+ * others doesn't widen (then narrow) the domain each tick — which would jitter the
+ * x-axis resolution. Returns undefined when there's no cap, only one series, the
+ * series are aligned, or a series leads by MORE than 2 distinct x (a genuinely
+ * longer series must not be clipped). Leaves the lower bound alone, so the trailing
+ * exit points stay anchored to the natural left edge.
+ */
+function settledUpperBound(
+  allX: readonly (number | Date)[],
+  visible: ReadonlyMap<string, VisibleSeriesEntry>,
+  maxN: number | null,
+): number | undefined {
+  if (maxN === null || maxN <= 0 || allX.length === 0) return undefined
+  let settledMax = Infinity
+  let rawMax = -Infinity
+  let seriesCount = 0
+  for (const s of visible.values()) {
+    if (s.raw.length === 0) continue
+    const last = +s.raw[s.raw.length - 1]!.x
+    if (last < settledMax) settledMax = last
+    if (last > rawMax) rawMax = last
+    seriesCount++
+  }
+  if (seriesCount <= 1 || settledMax >= rawMax) return undefined
+  const distinct = Array.from(new Set(allX.map(v => +v))).sort((a, b) => a - b)
+  const idx = distinct.indexOf(settledMax)
+  if (idx < 0 || distinct.length - 1 - idx > 2) return undefined
+  return settledMax
 }
 
 /**

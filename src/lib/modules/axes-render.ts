@@ -180,11 +180,15 @@ export function axesRenderModule(): ChartModule {
         reads: { layout: Layout, settings: Settings },
         run: ({ layout, settings }) => {
           if (!filterSel || !sharpAboveSel || !blurredBandSel) return
-          const { innerWidth, innerHeight } = layout
+          const { margins, baseMargins, innerWidth, innerHeight } = layout
           const bandHeight = BAND_HEIGHT
           const pad = 40
-          const x = -pad
-          const width = innerWidth + pad * 2
+          // The filter region (userSpaceOnUse) CLIPS the filter's output, so it must
+          // cover the full clipped chart area — including the left margin the strip
+          // scrolls its exit tail into. It used to be just innerWidth ± pad, which cut
+          // the scrolling line off at x=-40, before the exit points (left of the blur).
+          const x = -(margins.left + pad)
+          const width = margins.left + innerWidth + baseMargins.right + pad * 2
 
           filterSel
             .attr('x', x)

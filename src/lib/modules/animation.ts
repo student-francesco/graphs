@@ -6,7 +6,7 @@ import {
   type ModuleRuntime,
 } from '@/lib/engine/index.ts'
 import { EASING_MAP } from '@/lib/d3-maps.ts'
-import type { AnimationMode, InternalDataPoint } from '@/lib/types.ts'
+import type { AnimationMode } from '@/lib/types.ts'
 import {
   AnimationCtx,
   D3Ctx,
@@ -18,7 +18,6 @@ import {
   type GeomRole,
   type PathSpec,
   type ReshiftSpec,
-  type ScaleBundle,
   type VisibleSeriesEntry,
 } from './tokens.ts'
 
@@ -39,16 +38,29 @@ import {
  * every element marked data-lc-exiting by the scroll delta (so exiters keep
  * their visual position when the container moves) and animates the container
  * back to the origin. Renderers never read or write the container transform.
+ *
+ * Trimmed-off points are kept joined as ~5 pending EXIT points (dots + the line's
+ * leftmost segment) so the strip's left edge stays continuous as it scrolls off
+ * under the fade mask instead of popping (`series.trimExitPoints` in scrollPost).
  */
 export function animationModule(): ChartModule {
   // Mirrors the monolith's construction-time init: renders within the first
   // animation window use the easeExpOut interrupt easing.
   let lastRenderAt = Date.now()
-  // The rightmost data x rendered last pass — the next transition measures the
-  // scroll as the gap from this point to the new rightmost point (see scrollPre).
-  let prevLastX: InternalDataPoint['x'] | null = null
+  // The x-domain edges (as +values) rendered last pass. The scroll fires when the
+  // LOW edge advances (window rolled) and displaces by how far the previous HIGH
+  // edge moved off the right — both read from the scale's domain (see scrollPre).
+  let prevLo: number | null = null
+  let prevHi: number | null = null
   let scrollStartX = 0
   let scrollDelta = 0
+  // Whether THIS pass rolled the domain (set in scrollPre, consumed in scrollPost).
+  // A non-rolling pass leaves any in-flight scroll untouched.
+  let scrolledThisPass = false
+  // stepCtx.now of the last roll — the scroll-back is paced to the gap since then so
+  // it finishes about when the next point is due (null = none observed yet ⇒ fall
+  // back to the full animation duration for a lone slide).
+  let lastAdvanceAt: number | null = null
   let rtRef: ModuleRuntime | null = null
 
   return {
@@ -103,25 +115,46 @@ export function animationModule(): ChartModule {
         run: ({ anim, ctx, visible, scales }) => {
           scrollStartX = 0
           scrollDelta = 0
+          scrolledThisPass = false
           if (anim.mode !== 'transition' || anim.duration <= 0) return
+          if (!hasData(visible)) return
 
+          const [domLo, domHi] = scales.x.domain()
+          const loV = +domLo!
+          const hiV = +domHi!
+          const rangeR = scales.x.range()[1] ?? 0
+          if (prevLo === null || prevHi === null || hiV <= loV || rangeR <= 0) return
+
+          // Roll test: scroll only when the LEFT edge advances (old data leaving the
+          // left). While filling, the left edge is pinned and the domain just grows —
+          // no scroll. Epsilon is relative to the domain width so it's scale-agnostic
+          // (ms for time, units for numeric).
+          const width = hiV - loV
+          const rolling = loV - prevLo > width * 1e-6
+          if (!rolling) return
+
+          // Displace by how far the previous right edge moved off the right: pin that
+          // value to where it was (the right edge), then ease back. The rolling
+          // window only translates, so this uniform shift keeps ALL retained content
+          // stationary at the jump (no per-point glitch).
+          const advancePx = (rangeR * (hiV - prevHi)) / width
+          if (advancePx <= 0.5) return
+
+          scrolledThisPass = true
           const scroll = ctx.scrollG
           scroll.interrupt()
           const raw = scroll.attr('transform') || ''
           const m = /translate\(\s*(-?[\d.e]+)/.exec(raw)
           const currentX = m ? parseFloat(m[1]!) : 0
 
-          // Scroll by the exact gap the newest data opened up: where the previous
-          // rightmost point sits NOW versus where the new rightmost point sits.
-          // Both are read from the CURRENT scale, so mixed-resolution data (points
-          // not evenly spaced) scrolls correctly — there is no assumption that each
-          // appended point is the same pixel distance from the last.
-          if (prevLastX !== null) {
-            const newLastX = rightmostX(visible, scales.x)
-            if (newLastX !== undefined) {
-              scrollStartX = scales.x(newLastX) - scales.x(prevLastX) + currentX
-            }
-          }
+          // Accumulate the new gap onto wherever the container currently sits, so a
+          // scroll arriving mid-animation continues from that point (no snap-back).
+          // Cap the carried-over offset at a few steps: normal focused operation
+          // leaves a sub-step residual, but a backgrounded tab (scroll transition
+          // frozen while appends keep arriving) would otherwise pile up an unbounded
+          // shift that sweeps across on return.
+          const carry = Math.min(Math.max(currentX, 0), advancePx * 3)
+          scrollStartX = advancePx + carry
           scrollDelta = currentX - scrollStartX
 
           scroll.attr(
@@ -140,42 +173,60 @@ export function animationModule(): ChartModule {
           const scroll = ctx.scrollG
 
           if (anim.mode === 'transition' && anim.duration > 0) {
-            // Reshift exiting elements (still fading from this or earlier passes)
-            // so they don't jump when the container is repositioned. Position
-            // only — their fade transitions keep running.
-            if (Math.abs(scrollDelta) > 0.5) {
-              const delta = scrollDelta
-              scroll.selectAll<Element, unknown>('[data-lc-exiting]').each(function () {
-                applyReshift(
-                  this,
-                  (this as Element & { __lcReshift?: ReshiftSpec }).__lcReshift,
-                  delta,
-                )
-              })
+            if (scrolledThisPass) {
+              // Reshift exiting elements (still fading from this or earlier passes)
+              // so they don't jump when the container is repositioned. Position
+              // only — their fade transitions keep running.
+              if (Math.abs(scrollDelta) > 0.5) {
+                const delta = scrollDelta
+                scroll.selectAll<Element, unknown>('[data-lc-exiting]').each(function () {
+                  applyReshift(
+                    this,
+                    (this as Element & { __lcReshift?: ReshiftSpec }).__lcReshift,
+                    delta,
+                  )
+                })
+              }
+              // Ease back to the origin at a CONSTANT velocity (linear), covering the
+              // distance in the time until the next point is due — the last observed
+              // roll interval, capped at animationDuration. Linear + interval pacing
+              // means back-to-back rolls chain into one glide rather than
+              // re-decelerating from rest on each point. A lone roll (no recent one)
+              // falls back to the full duration: a normal slide.
+              const interval =
+                lastAdvanceAt === null ? anim.duration : stepCtx.now - lastAdvanceAt
+              const scrollDuration = Math.max(1, Math.min(anim.duration, interval))
+              lastAdvanceAt = stepCtx.now
+              if (Math.abs(scrollStartX) > 0.5) {
+                scroll
+                  .transition()
+                  .duration(scrollDuration)
+                  .ease(EASING_MAP.easeLinear)
+                  .attr('transform', 'translate(0, 0)')
+              } else {
+                scroll.attr('transform', 'translate(0, 0)')
+              }
             }
-            if (Math.abs(scrollStartX) > 0.5) {
-              scroll
-                .transition()
-                .duration(anim.duration)
-                .ease(anim.ease)
-                .attr('transform', 'translate(0, 0)')
-            } else {
-              scroll.attr('transform', 'translate(0, 0)')
-            }
+            // A non-rolling transition pass leaves the in-flight scroll alone.
           } else {
             // Reset any lingering scroll transform (resize, settings change, …).
             scroll.interrupt().attr('transform', 'translate(0, 0)')
+            lastAdvanceAt = null
           }
 
-          // Remember this pass's rightmost point so the next transition measures
-          // the scroll gap from it (see scrollPre). Keep the prior value when the
-          // chart has no data so an empty pass doesn't lose the reference.
-          const lastX = rightmostX(visible, scales.x)
-          if (lastX !== undefined) prevLastX = lastX
+          // Remember this pass's domain edges so the next transition measures the
+          // roll from them (see scrollPre). Keep the prior values when the chart has
+          // no data so an empty pass doesn't lose the reference.
+          if (hasData(visible)) {
+            const [domLo, domHi] = scales.x.domain()
+            prevLo = +domLo!
+            prevHi = +domHi!
+          }
           lastRenderAt = stepCtx.now
-          // Keep a small number of exit points per series so the left-edge blur
-          // is not disturbed; takes effect on the next data-driven join.
-          rtRef?.command('series.trimExitPoints', 4)
+          // Keep ~5 exit points per series (dots + the line's leftmost segment) so
+          // the strip's left edge stays continuous as it scrolls off under the fade
+          // mask instead of popping; takes effect on the next data-driven join.
+          rtRef?.command('series.trimExitPoints', 5)
         },
       }),
     ],
@@ -186,28 +237,13 @@ export function animationModule(): ChartModule {
   }
 }
 
-/**
- * The rightmost data x across visible series (each series' `raw` is x-sorted, so
- * the last element is its rightmost). Chosen by pixel position so the series that
- * extends furthest right wins — that point sits at the scale's right edge and
- * defines how far the chart must scroll when newer data arrives.
- */
-function rightmostX(
-  visible: ReadonlyMap<string, VisibleSeriesEntry>,
-  xScale: ScaleBundle['x'],
-): InternalDataPoint['x'] | undefined {
-  let best: InternalDataPoint['x'] | undefined
-  let bestPos = -Infinity
+/** Whether any visible series holds at least one point — the domain edges are only
+ *  meaningful (and worth remembering across passes) when there is data. */
+function hasData(visible: ReadonlyMap<string, VisibleSeriesEntry>): boolean {
   for (const s of visible.values()) {
-    if (s.raw.length === 0) continue
-    const x = s.raw[s.raw.length - 1]!.x
-    const pos = xScale(x)
-    if (pos > bestPos) {
-      bestPos = pos
-      best = x
-    }
+    if (s.raw.length > 0) return true
   }
-  return best
+  return false
 }
 
 function applyReshift(el: Element, spec: ReshiftSpec | undefined, delta: number): void {
@@ -308,17 +344,27 @@ function buildCtx(
 
     fadeOutExit(sel: AnySelection, exitingClass: string, reshift?: ReshiftSpec) {
       // Rename immediately so future joins never see these elements; mark for the
-      // transition driver's scroll reshift; fade out independently of later renders.
+      // transition driver's scroll reshift; retire independently of later renders.
       const marked = sel.attr('class', exitingClass).attr('data-lc-exiting', '')
       if (reshift) {
         marked.each(function (this: Element) {
           ;(this as Element & { __lcReshift?: ReshiftSpec }).__lcReshift = reshift
         })
       }
-      if (duration > 0) {
-        marked.transition().duration(duration).ease(ease).style('opacity', 0).remove()
-      } else {
+      if (duration <= 0) {
         marked.remove()
+        return
+      }
+      if (mode === 'transition') {
+        // Transition is a strip scroll: the container carries these off the left
+        // into the fade MASK (a positional gradient), which is what fades them.
+        // Do NOT animate their opacity — with staggered multi-series appends the
+        // container sits still between sub-appends, so an opacity fade made points
+        // fade in place while nothing scrolled. Keep them fully drawn and simply
+        // retire them once the scroll that carries them off has run.
+        marked.transition().duration(duration).remove()
+      } else {
+        marked.transition().duration(duration).ease(ease).style('opacity', 0).remove()
       }
     },
   }

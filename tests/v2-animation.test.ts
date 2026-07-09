@@ -199,7 +199,7 @@ describe('v2 transition (scroll choreography)', () => {
     expect(series.series[0]!.data).toHaveLength(10)
   })
 
-  it('exit points are trimmed to 4 after each pass', async () => {
+  it('exit points are trimmed to ~5 after each pass', async () => {
     const { chart } = mountV2({
       animationDuration: DURATION,
       appendAnimation: 'transition',
@@ -214,9 +214,10 @@ describe('v2 transition (scroll choreography)', () => {
       })
     }
     await sleep(DURATION * 5)
-    // 7 trims accumulated, but the post-pass cap keeps at most 4 (+1 in flight)
+    // 7 trims accumulated, but the post-pass cap keeps ~5 exit points (+1 in flight)
+    // so the scrolling left edge stays continuous.
     const { container } = { container: document.getElementById(`v2-anim-${v2Counter}`)! }
     const dots = container.querySelectorAll('.lc-dot')
-    expect(dots.length).toBeLessThanOrEqual(10 + 5)
+    expect(dots.length).toBeLessThanOrEqual(10 + 6)
   })
 })

@@ -205,9 +205,14 @@ export function contextModule(container: HTMLElement): ChartModule {
           ctx.innerG.attr('transform', innerTransform)
           ctx.overlayG.attr('transform', innerTransform)
 
-          // Clip is sized against the BASE margin so stacked axes' label columns
-          // don't become part of the chart's clip area.
-          const leftExt = baseMargins.left / 2
+          // Clip + fade mask span the FULL left margin (`margins.left`) — the same
+          // width as the blur overlay below — so the scrolling strip dissolves across
+          // the entire left blur area, not just the innermost part. Their left edges
+          // coincide and the MASK (a soft gradient) governs the dissolve. Earlier the
+          // clip/mask used only the BASE margin (and the clip half of that), so with
+          // stacked axes the line was hard-clipped well before the blur, showing a cut
+          // edge as the container shifted left instead of fading into the blur.
+          const leftExt = margins.left
           const xAxisLabelSpace = 32 // approximated
           ctx.clipRect
             .attr('x', -leftExt)
@@ -215,7 +220,7 @@ export function contextModule(container: HTMLElement): ChartModule {
             .attr('height', Math.max(0, innerHeight + xAxisLabelSpace))
 
           // Fade mask: 0% = left clip edge (transparent) → y-axis position (opaque).
-          const maskLeft = baseMargins.left
+          const maskLeft = margins.left
           const totalW = innerWidth + maskLeft
           const yAxisFrac = totalW > 0 ? ((maskLeft / totalW) * 100).toFixed(3) : '0'
           ctx.fadeMaskRect
