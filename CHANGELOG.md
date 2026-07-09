@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## Unreleased
+## [1.1.0] - 2026-07-09
 
 ### Fixed
 - Transition (scroll) animation mode is now smooth for live charts whose series append at irregular / staggered intervals (e.g. several series updating at random times, or appends faster than `animationDuration`). Previously the strip stuttered, snapped to the right while still filling, and its lines flickered to inconsistent lengths. Changes:
