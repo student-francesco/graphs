@@ -30,6 +30,7 @@ interface YAxisModel {
   /** Tick values aligned 1:1 with their resolved labels. */
   readonly tickValues: readonly number[]
   readonly tickLabels: readonly string[]
+  readonly unitLabel: string | null
 }
 
 interface AxisRenderModel {
@@ -130,6 +131,7 @@ export function axesRenderModule(): ChartModule {
                 offsetX: axis.offsetX,
                 tickValues: scales.yTicks.get(axis.id) ?? [],
                 tickLabels: yLabels.get(axis.id) ?? [],
+                unitLabel: axis.unitLabel
               })
             }
             return { show: true, xTicks, yAxes, showNames: axisLayouts.length >= 2 }
@@ -299,6 +301,25 @@ export function axesRenderModule(): ChartModule {
             const gen = (axis.position === 'right' ? d3.axisRight(yScale) : d3.axisLeft(yScale))
               .tickValues(axis.tickValues as number[])
               .tickFormat((_, i) => axis.tickLabels[i] ?? '')
+
+            // Render the unitLabel
+            const unitSel = sel.selectAll<SVGTextElement, YAxisModel>('.lc-y-axis-unit')
+                .data(axis.unitLabel ? [axis] : [])
+            unitSel.exit().remove()
+            unitSel
+                .enter()
+                .append('text')
+                .attr('class', 'lc-y-axis-unit')
+                .attr('font-size', '10px')
+                .attr('font-family', 'sans-serif')
+                .attr('text-anchor', 'middle')
+                .merge(unitSel)
+                .attr('y', 0)
+                .attr('dy', '-0.75em')
+                .attr('x', axis.position === 'right' ? 6 : -6)
+                .attr('text-anchor', axis.position === 'right' ? 'start' : 'end')
+                .attr('fill', '#444444')
+                .text(a => `[${a.unitLabel?.trim()}]`)
 
             if (anim.shouldTween('free')) {
               sel

@@ -5,6 +5,7 @@ export interface AxisRecord {
   color: string
   range?: [number, number]
   limits?: [number, number]
+  unitLabel?: string
 }
 
 /**

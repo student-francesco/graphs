@@ -31,6 +31,7 @@ function defaultAxis(id: string): AxisDef {
     gridColor: undefined,
     gridOpacity: undefined,
     yTickCount: undefined,
+    unitLabel: null
   }
 }
 
@@ -111,6 +112,7 @@ export function axesStoreModule(): ChartModule {
             yTickCount: a.yTickCount !== undefined ? a.yTickCount : settings.yTickCount,
             range: a.range,
             limits: a.limits,
+            unitLabel: a.unitLabel ?? settings.unitLabel ?? null
           })
           if (defs.length === 1) return [resolve(defs[0]!, 'left', 0)]
           if (defs.length === 2) {
@@ -156,6 +158,7 @@ export function axesStoreModule(): ChartModule {
         if ('gridColor' in options) next.gridColor = options.gridColor
         if ('gridOpacity' in options) next.gridOpacity = options.gridOpacity
         if ('yTickCount' in options) next.yTickCount = options.yTickCount
+        if ('unitLabel' in options) next.unitLabel = options.unitLabel ?? null
         return next
       }
 
@@ -178,6 +181,7 @@ export function axesStoreModule(): ChartModule {
               gridColor: options?.gridColor,
               gridOpacity: options?.gridOpacity,
               yTickCount: options?.yTickCount,
+              unitLabel: options?.unitLabel ?? null
             })
           })
         },

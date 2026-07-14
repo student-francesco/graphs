@@ -123,6 +123,7 @@ export interface AxisDef {
   readonly gridColor: string | undefined
   readonly gridOpacity: number | undefined
   readonly yTickCount: number | null | undefined
+  readonly unitLabel: string | null
 }
 
 /** Ordered axis definitions — provided by the axes-store module. */
@@ -143,6 +144,7 @@ export interface AxisLayoutEntry {
   /** Verbatim domain pins (no cascade) — carried through for the scales module. */
   readonly range: readonly [number, number] | null
   readonly limits: readonly [number, number] | null
+  readonly unitLabel: string | null
 }
 
 export const AxisLayouts: Token<readonly AxisLayoutEntry[]> = token('axes.layouts')

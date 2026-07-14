@@ -7,6 +7,7 @@ export function initAxesTab(h: Harness): void {
 
   const axisSelect = document.getElementById('axis-select') as HTMLSelectElement
   const axisName = document.getElementById('axis-name') as HTMLInputElement
+  const axisUnit = document.getElementById('axis-unit') as HTMLInputElement
   const axisColor = document.getElementById('axis-color') as HTMLInputElement
   const axisUseRange = document.getElementById('axis-use-range') as HTMLInputElement
   const axisRangeMin = document.getElementById('axis-range-min') as HTMLInputElement
@@ -22,6 +23,7 @@ export function initAxesTab(h: Harness): void {
     const rec = h.axisRecords.get(h.activeAxisId())
     if (!rec) return
     axisName.value = rec.name
+    axisUnit.value = rec.unitLabel ?? ''
     axisColor.value = rec.color
     axisUseRange.checked = rec.range !== undefined
     axisRangeMin.value = rec.range ? String(rec.range[0]) : ''
@@ -97,6 +99,12 @@ export function initAxesTab(h: Harness): void {
     axisSelect.value = newId
     h.axisRecords.set(newId, { name: newId, color: axisColor.value })
     setLog(`(axis id queued — click Create / Update to register "${newId}")`)
+  })
+
+  axisUnit.addEventListener('change', () => {
+    const id = h.activeAxisId()
+    chart.updateAxisSettings(id, { unitLabel: axisUnit.value })
+    setLog(`updateAxisSettings("${id}", { unitLabel: "${axisUnit.value}" })`)
   })
 
   syncAxisInputs()

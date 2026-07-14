@@ -116,6 +116,11 @@ export interface AxisSettings {
    * undefined cascades to ChartSettings.yTickCount.
    */
   yTickCount?: number | null
+  /**
+   * The unit displayed for this y-axis.
+   * undefined cascades to ChartSettings.unitLabel.
+   */
+  unitLabel?: string | null
 }
 
 /** Common visual styling for annotation lines. Unset fields fall back to chart-wide annotation defaults. */
