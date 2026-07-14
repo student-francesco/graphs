@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- `xScaleType: 'linear' | 'log'` chart setting for a logarithmic x-axis, mirroring the existing `yScaleType`. Only meaningful for the numeric chart (`createNumericChart`) — temporal charts always plot a time scale and ignore this field. Non-positive x values are clamped to the smallest positive representable domain (with a console warning), matching the existing y-axis log scale behavior. Surfaced in the dev harness Line tab as the "X scale" toggle (numeric mode only).
+- `xScaleType: 'linear' | 'log'` chart setting for a logarithmic x-axis, mirroring the existing `yScaleType`. Only meaningful for the numeric chart (`createNumericChart`) — temporal charts always plot a time scale and ignore this field. The auto-computed domain is clamped to positive values (with a console warning) when the data includes non-positive x, matching the existing y-axis log scale behavior. Individual points at or below the domain floor (e.g. x=0) are clamped at evaluation time rather than left to produce `NaN` — previously that poisoned the whole SVG path and made the entire line disappear, both for this new x log scale and, latently, the pre-existing y log scale. Surfaced in the dev harness Line tab as the "X scale" toggle (numeric mode only).
 
 ## [1.1.0] - 2026-07-09
 
