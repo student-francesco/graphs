@@ -172,6 +172,9 @@ export interface ChartSettings extends SeriesSettings, AxisSettings {
   lineColor: string
   /** Chart-wide y-axis scale type default. AxisSettings.scaleType is the per-axis override. */
   yScaleType: 'linear' | 'log'
+  /** X-axis scale type. Only meaningful for numeric x charts (createNumericChart) —
+   *  temporal charts always plot a time scale and ignore this field. */
+  xScaleType: 'linear' | 'log'
 
   // ── Tooltip ────────────────────────────────────────────────────────────────
   showTooltip: boolean

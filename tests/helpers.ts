@@ -1,6 +1,8 @@
 import { afterEach } from 'vitest'
 import { createLineChart } from '@/lib/index.ts'
+import { createNumericChart } from '@/lib/charts/numeric-line/numeric-line.ts'
 import type { ChartSettings, LineChartHandle, RawDataPoint } from '@/lib/index.ts'
+import type { NumericChartHandle } from '@/lib/charts/numeric-line/types.ts'
 
 let chartCounter = 0
 const cleanups: Array<() => void> = []
@@ -36,6 +38,35 @@ export function mountChart(settings?: Partial<ChartSettings>): Mounted {
     chart,
     container,
     svg: () => container.querySelector('svg') as SVGSVGElement,
+    $all: (selector: string) => Array.from(container.querySelectorAll(selector)),
+    $: (selector: string) => container.querySelector(selector),
+  }
+}
+
+export interface MountedNumeric {
+  chart: NumericChartHandle
+  container: HTMLElement
+  $all: (selector: string) => Element[]
+  $: (selector: string) => Element | null
+}
+
+/** Same contract as mountChart, for the numeric (x: number, y: number) chart kind. */
+export function mountNumericChart(settings?: Partial<ChartSettings>): MountedNumeric {
+  const container = document.createElement('div')
+  container.id = `chart-${++chartCounter}`
+  document.body.appendChild(container)
+  const chart = createNumericChart(container.id, { animationDuration: 0, ...settings })
+  cleanups.push(() => {
+    try {
+      chart.destroy()
+    } catch {
+      // already destroyed by the test itself
+    }
+    container.remove()
+  })
+  return {
+    chart,
+    container,
     $all: (selector: string) => Array.from(container.querySelectorAll(selector)),
     $: (selector: string) => container.querySelector(selector),
   }

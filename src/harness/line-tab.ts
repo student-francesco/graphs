@@ -2,7 +2,7 @@ import type { CurveType } from '@/lib/types.ts'
 import { generateExpSeries } from './data.ts'
 import type { Harness } from './state.ts'
 
-/** Line tab: curve, smoothing, decimation, y-scale type, tick counts, exp data loader. */
+/** Line tab: curve, smoothing, decimation, x/y-scale type, tick counts, exp data loader. */
 export function initLineTab(h: Harness): void {
   const { chart, setLog } = h
 
@@ -39,6 +39,20 @@ export function initLineTab(h: Harness): void {
     chart.updateSettings({ yScaleType })
     setLog(`updateSettings({ yScaleType: "${yScaleType}" })`)
   })
+
+  let xScaleType: 'linear' | 'log' = 'linear'
+  const btnXScaleToggle = document.getElementById('btn-x-scale-toggle')!
+  if (h.chartKind !== 'numeric') {
+    btnXScaleToggle.setAttribute('disabled', '')
+    btnXScaleToggle.title = 'X log scale only applies to the numeric chart (?chart=numeric)'
+  } else {
+    btnXScaleToggle.addEventListener('click', () => {
+      xScaleType = xScaleType === 'linear' ? 'log' : 'linear'
+      btnXScaleToggle.textContent = `X scale: ${xScaleType}`
+      chart.updateSettings({ xScaleType })
+      setLog(`updateSettings({ xScaleType: "${xScaleType}" })`)
+    })
+  }
 
   const btnLoadExp = document.getElementById('btn-load-exp')!
   if (h.chartKind === 'numeric') {

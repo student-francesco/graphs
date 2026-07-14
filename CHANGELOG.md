@@ -1,6 +1,12 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## [Unreleased]
+
+### Added
+- `xScaleType: 'linear' | 'log'` chart setting for a logarithmic x-axis, mirroring the existing `yScaleType`. Only meaningful for the numeric chart (`createNumericChart`) — temporal charts always plot a time scale and ignore this field. Non-positive x values are clamped to the smallest positive representable domain (with a console warning), matching the existing y-axis log scale behavior. Surfaced in the dev harness Line tab as the "X scale" toggle (numeric mode only).
+
 ## [1.1.0] - 2026-07-09
 
 ### Fixed

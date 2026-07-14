@@ -154,6 +154,7 @@ export type YScale =
 export type XScale =
   | d3.ScaleTime<number, number>
   | d3.ScaleLinear<number, number>
+  | d3.ScaleLogarithmic<number, number>
 
 export interface ScaleBundle {
   readonly x: XScale

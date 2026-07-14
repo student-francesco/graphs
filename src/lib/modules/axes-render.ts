@@ -383,8 +383,14 @@ function resolveXLabelsSync(
   // tick is passed through as the raw number — never coerced to a Date.
   if (typeof formatter === 'function') return ticks.map((d, i) => formatter(d as Date, i))
   // Each scale kind yields a matching formatter (time vs number); the tick type
-  // always agrees with the scale that produced it.
-  const fmt = xScale.tickFormat() as (d: Date | number) => string
+  // always agrees with the scale that produced it. Log's default tickFormat blanks
+  // non-power-of-base ticks, so every rendered tick still gets a label (mirrors
+  // the y-axis log formatting).
+  const fmt = (
+    settings.xScaleType === 'log'
+      ? (xScale as d3.ScaleLogarithmic<number, number>).tickFormat(ticks.length, '.2~s')
+      : xScale.tickFormat()
+  ) as (d: Date | number) => string
   return ticks.map(d => fmt(d))
 }
 

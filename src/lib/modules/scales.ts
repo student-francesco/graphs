@@ -74,7 +74,21 @@ export function scalesModule(): ChartModule {
             const hi = hiCap ?? n1
             const xDomain: [number, number] =
               n0 !== undefined && hi !== undefined ? [n0, hi] : [0, 1]
-            xAuto = d3.scaleLinear().domain(xDomain).range([0, innerWidth])
+            if (settings.xScaleType === 'log') {
+              const clampedLo = Math.max(xDomain[0], 1e-10)
+              const clampedHi = Math.max(xDomain[1], 1e-9)
+              if (clampedLo !== xDomain[0] || clampedHi !== xDomain[1]) {
+                console.warn('LineChart: x log scale domain clamped to positive values', {
+                  lo: xDomain[0],
+                  hi: xDomain[1],
+                  clampedLo,
+                  clampedHi,
+                })
+              }
+              xAuto = d3.scaleLog().base(10).domain([clampedLo, clampedHi]).range([0, innerWidth])
+            } else {
+              xAuto = d3.scaleLinear().domain(xDomain).range([0, innerWidth])
+            }
           } else {
             const [d0, d1] = d3.extent(allX as Date[])
             const hi = hiCap !== undefined ? new Date(hiCap) : d1
@@ -112,8 +126,9 @@ export function scalesModule(): ChartModule {
           const y = new Map<string, YScale>()
           const yTicks = new Map<string, readonly number[]>()
           const xd = x.domain()
+          const xKind = dataKind === 'numeric' ? settings.xScaleType : 'time'
           const descParts: string[] = [
-            `x:${+xd[0]!}..${+xd[1]!}/${innerWidth}`,
+            `x:${xKind}:${+xd[0]!}..${+xd[1]!}/${innerWidth}`,
           ]
 
           for (const axis of axisLayouts) {

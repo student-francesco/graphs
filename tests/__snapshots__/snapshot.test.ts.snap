@@ -203,6 +203,7 @@ exports[`getSnapshot (v2) > captures the full scenario shape (golden) 1`] = `
       "xAxisBlurEnabled": true,
       "xAxisBlurStrength": 4,
       "xLabel": null,
+      "xScaleType": "linear",
       "xTickCount": null,
       "yLabel": null,
       "yScaleType": "linear",
