@@ -85,7 +85,17 @@ export function scalesModule(): ChartModule {
                   clampedHi,
                 })
               }
-              xAuto = d3.scaleLog().base(10).domain([clampedLo, clampedHi]).range([0, innerWidth])
+              // clamp(true): a data point at/below the domain floor (e.g. x=0) would
+              // otherwise take Math.log of a non-positive number → NaN → an invalid
+              // path `d` that makes the WHOLE line disappear, not just that point.
+              // Clamping happens in domain space before the log transform, so such
+              // points land at the left edge instead of poisoning the path.
+              xAuto = d3
+                .scaleLog()
+                .base(10)
+                .domain([clampedLo, clampedHi])
+                .range([0, innerWidth])
+                .clamp(true)
             } else {
               xAuto = d3.scaleLinear().domain(xDomain).range([0, innerWidth])
             }
@@ -206,11 +216,16 @@ function buildAxisYScale(
   const range = axis.range
   const limits = axis.limits
 
+  // clamp(true) on every scaleLog below: a value at/below the domain floor
+  // would otherwise take Math.log of a non-positive number → NaN → an invalid
+  // path `d` that makes the WHOLE line disappear, not just that point. Clamping
+  // happens in domain space before the log transform, so such points land at
+  // the range edge instead of poisoning the path.
   if (range) {
     if (isLog) {
       const lo = Math.max(range[0], 1e-10)
       const hi = Math.max(range[1], 1e-9)
-      return d3.scaleLog().base(10).domain([lo, hi]).range([innerHeight, 0])
+      return d3.scaleLog().base(10).domain([lo, hi]).range([innerHeight, 0]).clamp(true)
     }
     return d3.scaleLinear().domain([range[0], range[1]]).range([innerHeight, 0])
   }
@@ -223,6 +238,7 @@ function buildAxisYScale(
         .base(10)
         .domain([Math.max(lo, 1e-10), Math.max(hi, 1e-9)])
         .range([innerHeight, 0])
+        .clamp(true)
     }
     return d3.scaleLinear().domain([lo, hi]).nice().range([innerHeight, 0])
   }
@@ -246,7 +262,7 @@ function buildAxisYScale(
         clampedMax,
       })
     }
-    return d3.scaleLog().base(10).domain([clampedMin, clampedMax]).range([innerHeight, 0])
+    return d3.scaleLog().base(10).domain([clampedMin, clampedMax]).range([innerHeight, 0]).clamp(true)
   }
 
   const yPad = (yMax - yMin) * 0.1 || 1
