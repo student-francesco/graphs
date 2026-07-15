@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-07-15
+
+### Fixed
+- PDF export now works in the browser/Blazor WebView. Replaced `@react-pdf/renderer` (relies on Node.js-only internals, silently broken in-browser) with real off-screen HTML/CSS captured via `html2canvas` (3x scale for print-quality sharpness), still handed to the original dependency-free `buildPdf` for single-page PDF embedding. `buildPdf` now reads the embedded JPEG's own SOF marker for its declared width/height instead of assuming a fixed px-per-pt ratio, since capture resolution and page display size are no longer coupled. Fonts (IBM Plex Sans/Mono) now load via a real browser-native Google Fonts `@font-face`. Removed the `@react-pdf/renderer`/`@types/react` dependencies; added `html2canvas`.
+- Fixed the golden snapshot test left failing after 1.3.0's `unitLabel` axis setting landed without an updated snapshot.
+
 ## [1.3.0] - 2026-07-15
 
 ### Added
