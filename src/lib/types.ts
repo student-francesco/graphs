@@ -332,7 +332,7 @@ export interface ChartHandle {
   /** Remove the chart from the DOM and clean up all resources */
   destroy(): void
   /** Export the current chart as a PDF and trigger a browser download */
-  saveToPdf(filename?: string): Promise<void>
+  saveToPdf(filename: string, options?: PdfExportOptions): Promise<void>
   /** Clear all data and return to skeleton state */
   clearData(): void
 }
@@ -423,4 +423,16 @@ export interface AxisHandle {
 export interface ZoomHandle {
   /** Reset any pan / zoom transform back to identity (animated). No-op when already at identity. */
   resetZoom(): void
+}
+
+
+export interface PdfExportOptions {
+  title?: string
+  subtitle?: string
+  // header is predefined
+  xLabel?: string
+  yLabel?: string
+  footerLeft?: string
+  footerRight?: string | null // default = date
+  theme?: 'light' | 'dark' // default = light
 }
