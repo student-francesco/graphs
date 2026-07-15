@@ -4,7 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-15
+
 ### Added
+- `unitLabel` setting for y-axes (`AxisSettings.unitLabel`, cascading from chart-wide `ChartSettings.unitLabel`) — renders a small `[unit]` label above each y-axis, positioned to match the axis side (left/right). `null`/unset renders nothing.
 - **PDF export rebuilt on `@react-pdf/renderer`**, replacing the old dependency-free single-page PDF builder. `saveToPdf(filename, options?)` now accepts `PdfExportOptions` (`title`, `subtitle`, `xLabel`, `yLabel`, `footerLeft`, `footerRight`, `theme: 'light' | 'dark'`) for a branded, print-ready document independent of the on-screen chart's own title/axis labels — `xLabel`/`yLabel` are applied to the live chart's `Settings` store just long enough to rasterize the export image, then restored, so the on-screen chart is never visibly affected.
   - A4 landscape page, sized and proportioned (page/chart/header/footer ratios) from a Claude Design proposal (`Chart Export Page.dc.html`).
   - The chart is rasterized at 3x resolution (was 1:1 with the on-screen container) so it stays crisp at print size, and is fit into its page region via `contain`-style sizing (preserves aspect ratio — no skew) with an exact point-based `translate()` centering (react-pdf's `transform` doesn't resolve `%` values against an element's own size the way CSS does, so centering is computed from the chart's known pixel dimensions instead).
