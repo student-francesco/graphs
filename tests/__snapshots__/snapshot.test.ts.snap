@@ -35,6 +35,7 @@ exports[`getSnapshot (v2) > captures the full scenario shape (golden) 1`] = `
         "range": null,
         "scaleType": undefined,
         "showGrid": undefined,
+        "unitLabel": null,
         "yTickCount": undefined,
       },
       {
@@ -50,6 +51,7 @@ exports[`getSnapshot (v2) > captures the full scenario shape (golden) 1`] = `
         "range": null,
         "scaleType": "log",
         "showGrid": undefined,
+        "unitLabel": null,
         "yTickCount": undefined,
       },
     ],

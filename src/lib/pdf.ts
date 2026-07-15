@@ -1,4 +1,38 @@
 /**
+ * Reads the pixel width/height a JPEG's own SOF marker declares. The PDF spec requires an
+ * Image XObject's /Width and /Height to match the actual encoded sample dimensions — deriving
+ * them from the page point size instead (a fixed px-per-pt ratio) breaks the moment the source
+ * image's resolution doesn't happen to match that ratio, e.g. a higher-DPI capture shown at a
+ * smaller point size on the page.
+ */
+function readJpegDimensions(bytes: Uint8Array): { width: number; height: number } {
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) {
+    throw new Error('Not a valid JPEG (missing SOI marker)')
+  }
+  let i = 2
+  while (i + 9 <= bytes.length) {
+    if (bytes[i] !== 0xff) { i++; continue }
+    const marker = bytes[i + 1]!
+    // Markers with no length/payload (RST0-7, TEM, and a stray fill 0xFF already skipped above).
+    if (marker === 0xd8 || marker === 0xd9 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) {
+      i += 2
+      continue
+    }
+    const length = (bytes[i + 2]! << 8) | bytes[i + 3]!
+    // SOF0-SOF15, excluding DHT (C4), JPG extension (C8), and DAC (CC) which share the range.
+    const isSofMarker = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc
+    if (isSofMarker) {
+      const height = (bytes[i + 5]! << 8) | bytes[i + 6]!
+      const width = (bytes[i + 7]! << 8) | bytes[i + 8]!
+      return { width, height }
+    }
+    if (marker === 0xda) break // Start of Scan — no more header markers follow
+    i += 2 + length
+  }
+  throw new Error('Could not find a JPEG SOF marker to read image dimensions from')
+}
+
+/**
  * Builds a single-page PDF that embeds a JPEG image.
  * No external dependencies — uses raw PDF syntax.
  */
@@ -32,8 +66,7 @@ export function buildPdf(jpegBytes: Uint8Array, widthPt: number, heightPt: numbe
   endObj()
 
   // Image XObject (raw JPEG — /DCTDecode, no re-encoding needed)
-  const imgW = Math.round(widthPt / 0.75)
-  const imgH = Math.round(heightPt / 0.75)
+  const { width: imgW, height: imgH } = readJpegDimensions(jpegBytes)
   startObj(4)
   push(`<< /Type /XObject /Subtype /Image /Width ${imgW} /Height ${imgH} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`)
   push(jpegBytes)
