@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **PDF export rebuilt on `@react-pdf/renderer`**, replacing the old dependency-free single-page PDF builder. `saveToPdf(filename, options?)` now accepts `PdfExportOptions` (`title`, `subtitle`, `xLabel`, `yLabel`, `footerLeft`, `footerRight`, `theme: 'light' | 'dark'`) for a branded, print-ready document independent of the on-screen chart's own title/axis labels — `xLabel`/`yLabel` are applied to the live chart's `Settings` store just long enough to rasterize the export image, then restored, so the on-screen chart is never visibly affected.
+  - A4 landscape page, sized and proportioned (page/chart/header/footer ratios) from a Claude Design proposal (`Chart Export Page.dc.html`).
+  - The chart is rasterized at 3x resolution (was 1:1 with the on-screen container) so it stays crisp at print size, and is fit into its page region via `contain`-style sizing (preserves aspect ratio — no skew) with an exact point-based `translate()` centering (react-pdf's `transform` doesn't resolve `%` values against an element's own size the way CSS does, so centering is computed from the chart's known pixel dimensions instead).
+  - Title/subtitle track the chart's actual (dynamic) size and position rather than a fixed offset, so they stay correctly placed — closely stacked, slightly lifted above the chart — regardless of the chart's aspect ratio.
+  - Typeset in IBM Plex Sans / IBM Plex Mono (matching the design), fonts sourced from verified upstreams and inlined; the INFICON wordmark/icon logo is inlined as base64 data URIs (`src/lib/export/assets.ts`) rather than referenced from `public/`, since the library build (`publicDir: false`) and NuGet package don't ship anything from there — a Blazor consumer's wwwroot would otherwise have no file for the export to resolve.
+  - New dev harness Export tab for exercising all of the above.
+
 ## [1.2.0] - 2026-07-14
 
 ### Added

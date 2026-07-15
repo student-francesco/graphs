@@ -12,6 +12,7 @@ import { initLabelsTab } from './harness/labels-tab.ts'
 import { initAnnotationsTab } from './harness/annotations-tab.ts'
 import { initSnapshotTab } from './harness/snapshot-tab.ts'
 import { initModulesTab } from './harness/modules-tab.ts'
+import { initExportTab } from './harness/export-tab.ts'
 
 const params = new URLSearchParams(window.location.search)
 const chartKind = params.get('chart') === 'numeric' ? 'numeric' : 'temporal'
@@ -40,6 +41,7 @@ initSeriesTab(harness)
 initAxesTab(harness)
 initLabelsTab(harness)
 const annotationsApi = initAnnotationsTab(harness)
+initExportTab(harness);
 initSnapshotTab(harness, annotationsApi)
 initModulesTab(harness)
 

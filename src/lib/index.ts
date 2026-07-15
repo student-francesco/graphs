@@ -19,6 +19,7 @@ export type {
   SeriesModuleSnapshot,
   AnnotationSnapshot,
   ZoomSnapshot,
+  PdfExportOptions as PDFExportOptions
 } from './types.ts'
 export type { LineChartHandle } from './charts/line/types.ts'
 export type { NumericChartHandle } from './charts/numeric-line/types.ts'

@@ -188,6 +188,7 @@
         <button class="tab-btn" data-tab="labels">Labels</button>
         <button class="tab-btn" data-tab="annotations">Annotations</button>
         <button class="tab-btn" data-tab="snapshot">Snapshot</button>
+        <button class="tab-btn" data-tab="export">Export</button>
         <button class="tab-btn" data-tab="modules">Modules</button>
       </div>
 
@@ -504,6 +505,42 @@
           <button id="btn-snapshot-restore">Restore</button>
           <button id="btn-snapshot-wipe" class="danger">Wipe chart</button>
         </div>
+      </div>
+
+      <!-- Export tab: PDF filename, footer bands, PDF-only title/axis-title overrides -->
+      <div class="tab-panel" id="tab-export" role="tabpanel">
+        <div class="control-group">
+          <label for="pdf-filename">Filename</label>
+          <input type="text" id="pdf-filename" placeholder="chart" style="width:140px" />
+        </div>
+        <div class="vr"></div>
+        <div class="control-group">
+          <label for="pdf-footer-left">Footer left</label>
+          <input type="text" id="pdf-footer-left" placeholder="footer left" style="width:140px" />
+        </div>
+        <div class="control-group">
+          <label for="pdf-footer-right">Footer right</label>
+          <input type="text" id="pdf-footer-right" placeholder="date" style="width:140px" />
+        </div>
+        <div class="vr"></div>
+        <div class="control-group">
+          <label for="pdf-title">Title</label>
+          <input type="text" id="pdf-title" placeholder="PDF title" style="width:160px" />
+        </div>
+        <div class="control-group">
+          <label for="pdf-title-caption">Subtitle</label>
+          <input type="text" id="pdf-title-caption" placeholder="PDF subtitle" style="width:160px" />
+        </div>
+        <div class="control-group">
+          <label for="pdf-x-label">X axis</label>
+          <input type="text" id="pdf-x-label" placeholder="X-axis label" />
+        </div>
+        <div class="control-group">
+          <label for="pdf-y-label">Y axis</label>
+          <input type="text" id="pdf-y-label" placeholder="Y-axis label" />
+        </div>
+        <div class="vr"></div>
+        <button id="btn-export-pdf">Export PDF</button>
       </div>
 
       <!-- Modules tab: implementation status of the strangler migration -->
