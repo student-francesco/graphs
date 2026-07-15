@@ -102,10 +102,9 @@ export function exportModule(): ChartModule {
             }
           }
 
-          // 4. Render with react-pdf
+          // 4. Render with html2canvas + buildPdf
           renderExport('pdf', {
             chartImgData: jpegDataUrl,
-            chartAspectRatio: width / height,
             ...(options ?? {})
           })
           .then(pdfBlob => {

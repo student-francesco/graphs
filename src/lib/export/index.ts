@@ -2,7 +2,7 @@ import type { PdfExportOptions } from "../types";
 import renderPdf from "./pdf";
 
 
-export type ExportProps = { chartImgData: string; chartAspectRatio: number } & PdfExportOptions
+export type ExportProps = { chartImgData: string } & PdfExportOptions
 export type ExportProvider = (props: ExportProps) => Promise<Blob>
 
 const providers: Map<ProviderKey, ExportProvider> = new Map();

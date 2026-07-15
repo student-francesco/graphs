@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { buildPdf } from '@/lib/pdf.ts'
 
-const FAKE_JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46])
+// SOI + minimal JFIF APP0 + a SOF0 marker declaring 400x200px — no scan data, since buildPdf
+// never decodes pixel data, only reads the SOF header for the image's real dimensions.
+const FAKE_JPEG = new Uint8Array([
+  0xff, 0xd8, // SOI
+  0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x02, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, // APP0/JFIF
+  0xff, 0xc0, 0x00, 0x11, 0x08, 0x00, 0xc8, 0x01, 0x90, 0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01, // SOF0: 400x200
+])
 
 describe('buildPdf', () => {
   it('produces a parseable single-page PDF skeleton', () => {
@@ -37,9 +43,18 @@ describe('buildPdf', () => {
     expect(found).toBe(true)
   })
 
-  it('derives image pixel size from point size (1pt = 1/0.75 px)', () => {
+  it('declares the image XObject size from the JPEG\'s own SOF marker, independent of the page point size', () => {
     const text = new TextDecoder('latin1').decode(buildPdf(FAKE_JPEG, 300, 150))
     expect(text).toContain('/Width 400 /Height 200')
+    // A different page size doesn't change the source image's declared pixel dimensions —
+    // display size (MediaBox / cm scale) and source resolution are independent.
+    const text2 = new TextDecoder('latin1').decode(buildPdf(FAKE_JPEG, 900, 900))
+    expect(text2).toContain('/Width 400 /Height 200')
+  })
+
+  it('throws on a JPEG with no SOF marker', () => {
+    const noSof = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]) // SOI + EOI only
+    expect(() => buildPdf(noSof, 100, 100)).toThrow(/SOF marker/)
   })
 
   it('xref offsets point at the matching "n 0 obj" headers', () => {
