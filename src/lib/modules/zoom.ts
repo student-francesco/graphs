@@ -3,6 +3,7 @@ import { renderStep, storeSpec, type ChartModule, type ModuleRuntime } from '@/l
 import { EASING_MAP } from '@/lib/d3-maps.ts'
 import {
   D3Ctx,
+  DisplaySeries,
   Layout,
   Scales,
   Settings,
@@ -50,20 +51,77 @@ export function zoomModule(): ChartModule {
 
   return {
     id: 'zoom',
-    defaults: { zoomEnabled: true, zoomMode: 'x', zoomScaleExtent: [1, 100] },
+    defaults: { zoomEnabled: true, zoomMode: 'x', zoomScaleExtent: [1, 100], zoomBounded: true },
 
     stores: [storeSpec({ token: ViewTransform, init: (): ViewTransformState => IDENTITY })],
 
     render: [
       renderStep({
         id: 'zoom.sync',
-        reads: { settings: Settings },
+        reads: { settings: Settings, series: DisplaySeries, layout: Layout, scales: Scales, view: ViewTransform },
         phase: 'pre',
         order: -50,
-        run: ({ settings }) => {
+        run: ({ settings, series, layout, scales, view }) => {
           // The filter reads settings live on every event; only the scale extent
           // needs explicit syncing.
           zoomBehavior?.scaleExtent(settings.zoomScaleExtent)
+          if (!zoomBehavior) return
+
+          const UNBOUNDED: [[number, number], [number, number]] = [
+            [-Infinity, -Infinity],
+            [Infinity, Infinity],
+          ]
+
+          // Master switch for the whole leash below: unrestricted pan/zoom in
+          // every other respect (scaleExtent still applies).
+          if (!settings.zoomBounded) {
+            zoomBehavior.translateExtent(UNBOUNDED)
+            return
+          }
+
+          // Leash: wheel/drag may zoom in, but never pan far enough to reveal
+          // empty space beyond the outermost x point of any series.
+          let lowestX = Infinity
+          let highestX = -Infinity
+          series.forEach(points => points.forEach(point => {
+            const x = +point.x
+            if (x < lowestX) lowestX = x
+            if (x > highestX) highestX = x
+          }))
+
+          if (lowestX > highestX) {
+            zoomBehavior.translateExtent(UNBOUNDED)
+            return
+          }
+
+          // Mirrors scales.build's zoomsX: unlock zoom extent if a brush is set
+          const hasOverride = view.xDomainOverride !== null || view.yDomainOverrides.size > 0
+          const zoomsX = hasOverride || settings.zoomMode === 'x' || settings.zoomMode === 'xy'
+          if (!zoomsX) {
+            zoomBehavior.translateExtent(UNBOUNDED)
+            return
+          }
+
+          // scales.x already has the live view transform baked in
+          // (scales.x(v) === xBase(v) * view.k + view.x); undo it to recover the
+          // identity-transform pixel position, which stays invariant across pan/
+          // zoom gestures. zoomBehavior is bound to the root <svg>, not innerG, so
+          // re-offset by the left margin to land in the same coordinate space
+          // d3.zoom's own translateExtent/extent operate in.
+          const toSvgX = (v: number): number => layout.margins.left + (scales.x(v) - view.x) / view.k
+
+          // Pad the leash outward by ~a viewport width on each side (minus a dot
+          // radius of clearance) so the series stays pannable even when it already
+          // fits edge-to-edge at k=1 — a world box exactly the viewport's size is
+          // otherwise immovable (d3.zoom centers/locks it). At full pan the
+          // outermost point ends up just inside the opposite edge, series scrolled
+          // off, the vacated side blank.
+          const pad = Math.max(0, layout.innerWidth - settings.dotRadius)
+
+          zoomBehavior.translateExtent([
+            [toSvgX(lowestX) - pad, -Infinity],
+            [toSvgX(highestX) + pad, Infinity],
+          ])
         },
       }),
     ],

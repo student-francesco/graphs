@@ -210,6 +210,7 @@ exports[`getSnapshot (v2) > captures the full scenario shape (golden) 1`] = `
       "yLabel": null,
       "yScaleType": "linear",
       "yTickCount": null,
+      "zoomBounded": true,
       "zoomEnabled": true,
       "zoomMode": "x",
       "zoomScaleExtent": [

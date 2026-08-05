@@ -120,6 +120,65 @@ describe('v2 wheel zoom', () => {
     chart.clearData()
     expect(zoomState().transform.k).toBe(1)
   })
+
+  it('plain drag cannot pan indefinitely past the outermost x data point', () => {
+    const { chart, svg, zoomState } = mountV2()
+    chart.setData(genSeries(20))
+    for (let i = 0; i < 5; i++) wheel(svg(), -200)
+    expect(zoomState().transform.k).toBeGreaterThan(1)
+
+    mouse('mousedown', svg(), 100, 100, false)
+    mouse('mousemove', window, 5000, 100, false)
+    mouse('mouseup', window, 5000, 100, false)
+    const xAfterFirstDrag = zoomState().transform.x
+
+    // A second, far larger drag in the same direction should not move the
+    // transform any further — the leash already sits at its padded limit.
+    mouse('mousedown', svg(), 100, 100, false)
+    mouse('mousemove', window, 20000, 100, false)
+    mouse('mouseup', window, 20000, 100, false)
+    expect(zoomState().transform.x).toBeCloseTo(xAfterFirstDrag, 5)
+  })
+
+  it('plain drag can pan even at k=1, when the series already fills the plot edge-to-edge', () => {
+    const { chart, svg, zoomState } = mountV2()
+    chart.setData(genSeries(20))
+    expect(zoomState().transform.k).toBe(1)
+
+    // A drag this large would move an unpadded (tight) leash by only a couple
+    // pixels — margin asymmetry can nudge an "immovable" world slightly. The
+    // padded leash lets it travel by roughly a viewport width instead.
+    mouse('mousedown', svg(), 300, 100, false)
+    mouse('mousemove', window, -5000, 100, false)
+    mouse('mouseup', window, -5000, 100, false)
+
+    expect(zoomState().transform.k).toBe(1)
+    expect(zoomState().transform.x).toBeLessThan(-100)
+  })
+
+  it('zoomBounded: false allows fully unrestricted pan/zoom', () => {
+    const { chart, svg, zoomState } = mountV2({ zoomBounded: false })
+    chart.setData(genSeries(20))
+
+    // Unbounded: even at k=1 (no overscroll leash to lean on), a huge drag
+    // moves the transform by roughly its own delta, not a capped fraction.
+    mouse('mousedown', svg(), 300, 100, false)
+    mouse('mousemove', window, -5000, 100, false)
+    mouse('mouseup', window, -5000, 100, false)
+    expect(zoomState().transform.x).toBeLessThan(-4000)
+
+    // And zoomed in, a second larger drag keeps moving further — no saturation.
+    for (let i = 0; i < 5; i++) wheel(svg(), -200)
+    mouse('mousedown', svg(), 100, 100, false)
+    mouse('mousemove', window, 5000, 100, false)
+    mouse('mouseup', window, 5000, 100, false)
+    const xAfterFirstDrag = zoomState().transform.x
+
+    mouse('mousedown', svg(), 100, 100, false)
+    mouse('mousemove', window, 20000, 100, false)
+    mouse('mouseup', window, 20000, 100, false)
+    expect(zoomState().transform.x).toBeGreaterThan(xAfterFirstDrag + 1000)
+  })
 })
 
 describe('v2 modifier brush', () => {

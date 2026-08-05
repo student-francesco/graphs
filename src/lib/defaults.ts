@@ -67,4 +67,5 @@ export const DEFAULT_SETTINGS: ChartSettings = {
   zoomEnabled: true,
   zoomMode: 'x',
   zoomScaleExtent: [1, 100],
+  zoomBounded: true,
 }

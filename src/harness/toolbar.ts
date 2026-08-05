@@ -200,6 +200,13 @@ export function initToolbar(h: Harness): void {
     setLog('resetZoom()')
   })
 
+  const zoomBoundedCb = document.getElementById('zoom-bounded') as HTMLInputElement
+  zoomBoundedCb.addEventListener('change', () => {
+    const zoomBounded = zoomBoundedCb.checked
+    chart.updateSettings({ zoomBounded })
+    setLog(`updateSettings({ zoomBounded: ${zoomBounded} })`)
+  })
+
   document.getElementById('btn-save-pdf')!.addEventListener('click', () => {
     chart.saveToPdf('chart')
     setLog('saveToPdf("chart")')

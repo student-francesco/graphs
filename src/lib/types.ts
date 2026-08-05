@@ -230,6 +230,11 @@ export interface ChartSettings extends SeriesSettings, AxisSettings {
   zoomMode: 'x' | 'y' | 'xy'
   /** Minimum / maximum scale factor for zoom; 1 means cannot zoom out below the natural extent. */
   zoomScaleExtent: [number, number]
+  /** Constrain pan/zoom so the viewport can't scroll past the outermost x point of any
+   *  series — panning still works even at the natural (k=1) extent, via a little
+   *  overscroll, down to ~1 point remaining visible, but never runs away indefinitely.
+   *  Set false for fully unrestricted pan/zoom. */
+  zoomBounded: boolean
 }
 
 /**
