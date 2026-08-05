@@ -4,13 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-05
+
+### Added
+- `zoomBounded` chart setting (default `true`): constrains pan/zoom so the viewport can't scroll past the outermost x point of any series. Panning still works at the natural (`k=1`) extent via a little overscroll — the leash is padded outward so a plain drag isn't a no-op just because the series already fits edge-to-edge — but it saturates once only the edge point would remain visible, rather than running away indefinitely. Set `zoomBounded: false` for the previous fully unrestricted pan/zoom.
+
 ## [1.3.1] - 2026-07-15
 
 ### Fixed
 - PDF export now works in the browser/Blazor WebView. Replaced `@react-pdf/renderer` (relies on Node.js-only internals, silently broken in-browser) with real off-screen HTML/CSS captured via `html2canvas` (3x scale for print-quality sharpness), still handed to the original dependency-free `buildPdf` for single-page PDF embedding. `buildPdf` now reads the embedded JPEG's own SOF marker for its declared width/height instead of assuming a fixed px-per-pt ratio, since capture resolution and page display size are no longer coupled. Fonts (IBM Plex Sans/Mono) now load via a real browser-native Google Fonts `@font-face`. Removed the `@react-pdf/renderer`/`@types/react` dependencies; added `html2canvas`.
 - Fixed the golden snapshot test left failing after 1.3.0's `unitLabel` axis setting landed without an updated snapshot.
-### Added
-- `zoomBounded` chart setting (default `true`): constrains pan/zoom so the viewport can't scroll past the outermost x point of any series. Panning still works at the natural (`k=1`) extent via a little overscroll — the leash is padded outward so a plain drag isn't a no-op just because the series already fits edge-to-edge — but it saturates once only the edge point would remain visible, rather than running away indefinitely. Set `zoomBounded: false` for the previous fully unrestricted pan/zoom.
 
 ## [1.3.0] - 2026-07-15
 
