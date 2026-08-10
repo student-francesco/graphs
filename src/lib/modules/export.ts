@@ -103,14 +103,14 @@ export function exportModule(): ChartModule {
           }
 
           // 4. Render with html2canvas + buildPdf
-          renderExport('pdf', {
+          return renderExport('pdf', {
             chartImgData: jpegDataUrl,
             ...(options ?? {})
           })
           .then(pdfBlob => {
             const a = document.createElement('a')
             a.href = URL.createObjectURL(pdfBlob)
-            a.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`
+            a.download = (filename as unknown as string).endsWith('.pdf') ? filename : `${filename}.pdf`
             document.body.appendChild(a)
             a.click()
             document.body.removeChild(a)
