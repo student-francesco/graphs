@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-08-10
+
+### Fixed
+- `saveToPdf()` resolved its returned promise as soon as the synchronous rasterization step finished, instead of waiting for the `html2canvas`/`buildPdf` render and download to actually complete — the final `renderExport('pdf', …).then(…).catch(…)` chain was fire-and-forgotten rather than returned. Callers `await`-ing `saveToPdf()` (Blazor interop in particular) could resume before the PDF had finished rendering or the download had been triggered. The promise chain is now returned so the call only resolves once the export is truly done.
+
 ## [1.4.0] - 2026-08-05
 
 ### Added
