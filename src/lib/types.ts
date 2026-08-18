@@ -203,6 +203,12 @@ export interface ChartSettings extends SeriesSettings, AxisSettings {
    * which avoids label overlap on small charts. Set an explicit number to override.
    */
   xTickCount: number | null
+  /**
+   * Symmetric padding added to each side of the x-axis domain, as a fraction of the
+   * domain's span (e.g. 0.03 = 3%). 0 (default) reproduces the historical behavior —
+   * no padding, so the first/last data points map exactly to the plot's left/right edges.
+   */
+  xDomainPadding: number
   ariaLabel: string
 
   // ── X-axis line blur ───────────────────────────────────────────────────────

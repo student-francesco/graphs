@@ -33,6 +33,7 @@ export const DEFAULT_SETTINGS: ChartSettings = {
   xAxisFormatter: null,
   yAxisFormatter: null,
   xTickCount: null,
+  xDomainPadding: 0,
 
   xAxisBlurEnabled: true,
   xAxisBlurStrength: 4,

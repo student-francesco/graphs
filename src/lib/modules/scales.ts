@@ -30,7 +30,7 @@ import {
 export function scalesModule(): ChartModule {
   return {
     id: 'scales',
-    defaults: { yScaleType: 'linear', xTickCount: null, yTickCount: null },
+    defaults: { yScaleType: 'linear', xTickCount: null, yTickCount: null, xDomainPadding: 0 },
 
     prepare: [
       prepareStep({
@@ -72,8 +72,13 @@ export function scalesModule(): ChartModule {
           if (dataKind === 'numeric') {
             const [n0, n1] = d3.extent(allX as number[])
             const hi = hiCap ?? n1
-            const xDomain: [number, number] =
+            let xDomain: [number, number] =
               n0 !== undefined && hi !== undefined ? [n0, hi] : [0, 1]
+            if (settings.xDomainPadding > 0) {
+              const span = xDomain[1] - xDomain[0]
+              const pad = span * settings.xDomainPadding || 0
+              xDomain = [xDomain[0] - pad, xDomain[1] + pad]
+            }
             if (settings.xScaleType === 'log') {
               const clampedLo = Math.max(xDomain[0], 1e-10)
               const clampedHi = Math.max(xDomain[1], 1e-9)
@@ -102,8 +107,13 @@ export function scalesModule(): ChartModule {
           } else {
             const [d0, d1] = d3.extent(allX as Date[])
             const hi = hiCap !== undefined ? new Date(hiCap) : d1
-            const xDomain: [Date, Date] =
+            let xDomain: [Date, Date] =
               d0 !== undefined && hi !== undefined ? [d0, hi] : [new Date(0), new Date(86_400_000)]
+            if (settings.xDomainPadding > 0) {
+              const spanMs = xDomain[1].getTime() - xDomain[0].getTime()
+              const padMs = spanMs * settings.xDomainPadding || 0
+              xDomain = [new Date(xDomain[0].getTime() - padMs), new Date(xDomain[1].getTime() + padMs)]
+            }
             xAuto = d3.scaleTime().domain(xDomain).range([0, innerWidth])
           }
 

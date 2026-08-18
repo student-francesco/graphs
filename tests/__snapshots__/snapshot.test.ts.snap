@@ -204,6 +204,7 @@ exports[`getSnapshot (v2) > captures the full scenario shape (golden) 1`] = `
       "updateDataAnimation": "morph",
       "xAxisBlurEnabled": true,
       "xAxisBlurStrength": 4,
+      "xDomainPadding": 0,
       "xLabel": null,
       "xScaleType": "linear",
       "xTickCount": null,

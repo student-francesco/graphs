@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- `xDomainPadding` chart setting: symmetric padding added to each side of the (time or numeric) x-axis domain, as a fraction of the domain's span (e.g. `0.03` = 3%). Mirrors the existing y-axis behavior, which already pads 10% + `.nice()`s the domain (`buildAxisYScale`) — the x-axis previously had no padding at all, so the first/last data points sat exactly on the plot's left/right edges. Defaults to `0`, reproducing the exact prior behavior for every existing consumer; opt in per chart via `updateSettings({xDomainPadding: ...})` or at construction.
+
 ## [1.4.1] - 2026-08-10
 
 ### Fixed
