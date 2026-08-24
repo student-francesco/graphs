@@ -164,6 +164,28 @@ describe('annotations', () => {
       expect(annotationY(chart, 't')).toBeCloseTo(ended!, 9) // committed to the store
     })
 
+    it('grabbing the line exactly at its own pixel position and nudging it tracks the cursor 1:1', () => {
+      // Regression: d3-drag's default `subject` is the bound datum itself, and reads its .x/.y
+      // to compute a start-of-gesture offset. PlacedAnnotation carries its own unrelated `y`
+      // field (the annotation's DATA value, e.g. 50) -- not a pixel coordinate -- so the default
+      // subject silently picked that up, baking `datum.y - initialPointerPixelY` into every
+      // subsequent event.y for the whole gesture. Grabbing exactly at the line's current pixel
+      // position and nudging it by a few pixels must move it by that same few pixels, not jump
+      // to a value derived from mixing a data-space number into a pixel-space computation.
+      const { chart, $ } = mountChart()
+      chart.setData(genSeries(10, { base: 50, amplitude: 20 }))
+      chart.setHorizontalLine('t', 50, 'T', { draggable: true })
+
+      const rect = $('.lc-annotation[data-id="t"] .lc-annotation-drag') as SVGRectElement
+      const line = $('.lc-annotation[data-id="t"] line') as SVGLineElement
+      const initialPixelY = Number(line.getAttribute('y1'))
+
+      mouse('mousedown', rect, initialPixelY)
+      mouse('mousemove', window, initialPixelY + 5)
+
+      expect(Number(line.getAttribute('y1'))).toBeCloseTo(initialPixelY + 5, 0)
+    })
+
     it('clamps the dragged value to dragBounds in both directions', () => {
       const { chart, $ } = mountChart()
       chart.setData(genSeries(10, { base: 50, amplitude: 20 }))

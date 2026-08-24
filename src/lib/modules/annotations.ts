@@ -111,6 +111,16 @@ function attachDrag(
 
   const drag = d3
     .drag<SVGRectElement, PlacedAnnotation>()
+    // d3-drag's default subject is the bound datum itself, and reads its .x/.y to compute a
+    // start-of-gesture offset (event.y = pointer.y + (subject.y - initialPointer.y)). Our datum
+    // (PlacedAnnotation) carries its own unrelated `y` field -- the annotation's DATA-space value
+    // (e.g. a threshold of 50), not a pixel coordinate -- so the default subject would silently
+    // pick that up and bake a bogus, wildly-wrong offset into every event.y for the whole drag.
+    // Mirror d3-drag's own null-datum fallback (`{x: event.x, y: event.y}`) instead: at
+    // "beforestart" the event already carries the current pointer position, so subject.y equals
+    // the pointer's y exactly and the resulting offset is a clean 0 -- not a hardcoded {x:0,y:0},
+    // which would itself compute a bogus non-zero offset against the real pointer position.
+    .subject((event) => ({x: event.x, y: event.y}))
     .on('drag', function (event) {
       const d = d3.select<SVGRectElement, PlacedAnnotation>(this).datum()
       const activeRt = getRt()
