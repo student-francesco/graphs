@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - `xDomainPadding` chart setting: symmetric padding added to each side of the (time or numeric) x-axis domain, as a fraction of the domain's span (e.g. `0.03` = 3%). Mirrors the existing y-axis behavior, which already pads 10% + `.nice()`s the domain (`buildAxisYScale`) — the x-axis previously had no padding at all, so the first/last data points sat exactly on the plot's left/right edges. Defaults to `0`, reproducing the exact prior behavior for every existing consumer; opt in per chart via `updateSettings({xDomainPadding: ...})` or at construction.
+- Draggable horizontal annotations: `HorizontalAnnotationSettings.draggable` adds a wider invisible hit-area so the viewer can drag the line vertically, clamped to `dragBounds` (defaults to the bound axis's domain). `onDrag` fires continuously with the live value (DOM-only, not committed); on release the new value commits to the annotation internally and `onDragEnd` fires with the final value so the host can persist it elsewhere. Dragging mutates the DOM directly during the gesture and only touches the store on release, so it doesn't rescale the y-axis mid-drag. Added for SwiftLeak's leak-threshold calibration graph (NS-1732), where the threshold line needs to be adjustable by hand in "Custom" mode.
 
 ## [1.4.1] - 2026-08-10
 

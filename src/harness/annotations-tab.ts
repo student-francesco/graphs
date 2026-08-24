@@ -19,6 +19,8 @@ export function initAnnotationsTab(h: Harness): AnnotationsTabApi {
   const annoColor = document.getElementById('anno-color') as HTMLInputElement
   const annoThickness = document.getElementById('anno-thickness') as HTMLInputElement
   const annoDashed = document.getElementById('anno-dashed') as HTMLInputElement
+  const annoDraggable = document.getElementById('anno-draggable') as HTMLInputElement
+  const annoDragValue = document.getElementById('anno-drag-value') as HTMLSpanElement
   let annoCounter = 1
 
   function syncAnnoTypeVisibility(): void {
@@ -62,6 +64,9 @@ export function initAnnotationsTab(h: Harness): AnnotationsTabApi {
         color: annoColor.value,
         thickness: parseFloat(annoThickness.value) || 1.5,
         dashed: annoDashed.checked,
+        draggable: annoDraggable.checked,
+        onDrag: v => { annoDragValue.textContent = `${v.toFixed(2)} (dragging)` },
+        onDragEnd: v => { annoDragValue.textContent = v.toFixed(2) },
       }
       chart.setHorizontalLine(name, y, label, settings)
       setLog(`setHorizontalLine("${name}", ${y}, "${label}", ${JSON.stringify(settings)})`)

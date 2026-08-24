@@ -5,6 +5,7 @@ import {
   storeSpec,
   token,
   type ChartModule,
+  type ModuleRuntime,
   type Token,
 } from '@/lib/engine/index.ts'
 import type {
@@ -31,6 +32,10 @@ interface HorizontalAnnotation extends AnnotationBase {
   readonly type: 'horizontal'
   readonly y: number
   readonly axisId: string
+  /** Whether a wider invisible hit-area is rendered so the viewer can drag this line vertically. */
+  readonly draggable: boolean
+  /** Clamp for a drag gesture, in the bound axis's value space. Null defaults to the axis's domain. */
+  readonly dragBounds: readonly [number, number] | null
 }
 
 interface VerticalAnnotation extends AnnotationBase {
@@ -39,6 +44,15 @@ interface VerticalAnnotation extends AnnotationBase {
 }
 
 export type Annotation = HorizontalAnnotation | VerticalAnnotation
+
+/** onDrag/onDragEnd callbacks are not serializable, so they live outside the (snapshot-captured) store, keyed by annotation id. */
+interface DragCallbacks {
+  readonly onDrag?: (value: number) => void
+  readonly onDragEnd?: (value: number) => void
+}
+
+/** Half-height in pixels of the invisible hit-area around a draggable horizontal line. */
+const DRAG_HIT_HALF_HEIGHT = 7
 
 const ANNOTATION_DEFAULTS = {
   color: '#6366f1',
@@ -64,9 +78,77 @@ interface PlacedAnnotation extends AnnotationBase {
   readonly x2: number
   readonly y1: number
   readonly y2: number
+  readonly draggable?: boolean
+  readonly dragBounds?: readonly [number, number] | null
+  readonly axisId?: string
 }
 
 const Geometry = token<readonly PlacedAnnotation[]>('annotations.geometry')
+
+/**
+ * Wire a d3.drag() gesture onto a hit-area rect. Attached once, on `enter`, to every
+ * annotation's rect regardless of type/draggable-ness: non-draggable and vertical
+ * annotations get `pointer-events: none` on that rect (set alongside the rest of its
+ * styling in the render step), so the browser never routes a pointer event to them in
+ * the first place — the `d.draggable` checks below are a defensive second layer, not
+ * the primary gate. Reads the CURRENT bound datum inside each handler (via `d3.select(
+ * this).datum()`), so a later `setHorizontalLine` call is picked up without re-attaching.
+ */
+function attachDrag(
+  selection: d3.Selection<SVGRectElement, PlacedAnnotation, SVGGElement, unknown>,
+  getRt: () => ModuleRuntime | null,
+  getCallbacks: (id: string) => DragCallbacks | undefined,
+): void {
+  function resolveValue(rt: ModuleRuntime, d: PlacedAnnotation, pixelY: number): number | null {
+    const scales = rt.peek(Scales)
+    if (!scales) return null
+    const yScale = scales.y.get(d.axisId ?? '') ?? scales.y.values().next().value
+    if (!yScale) return null
+    const domain = yScale.domain()
+    const [lo, hi] = d.dragBounds ?? [Math.min(domain[0], domain[1]), Math.max(domain[0], domain[1])]
+    return Math.min(hi, Math.max(lo, yScale.invert(pixelY)))
+  }
+
+  const drag = d3
+    .drag<SVGRectElement, PlacedAnnotation>()
+    .on('drag', function (event) {
+      const d = d3.select<SVGRectElement, PlacedAnnotation>(this).datum()
+      const activeRt = getRt()
+      if (!d.draggable || !activeRt) return
+      const value = resolveValue(activeRt, d, event.y)
+      if (value === null) return
+      const scales = activeRt.peek(Scales)
+      const yScale = scales?.y.get(d.axisId ?? '') ?? scales?.y.values().next().value
+      if (!yScale) return
+      const pixelY = yScale(value)
+
+      const group = d3.select<SVGGElement, PlacedAnnotation>(this.parentNode as SVGGElement)
+      group.select<SVGLineElement>('line').attr('y1', pixelY).attr('y2', pixelY)
+      d3.select(this).attr('y', pixelY - DRAG_HIT_HALF_HEIGHT)
+
+      getCallbacks(d.id)?.onDrag?.(value)
+    })
+    .on('end', function (event) {
+      const d = d3.select<SVGRectElement, PlacedAnnotation>(this).datum()
+      const activeRt = getRt()
+      if (!d.draggable || !activeRt) return
+      const value = resolveValue(activeRt, d, event.y)
+      if (value === null) return
+
+      const store = activeRt.store(AnnotationStore)
+      const current = store.get().annotations.get(d.id)
+      if (current?.type === 'horizontal') {
+        const next = new Map(store.get().annotations)
+        next.set(d.id, { ...current, y: value })
+        store.set({ annotations: next })
+        activeRt.flushSync()
+      }
+
+      getCallbacks(d.id)?.onDragEnd?.(value)
+    })
+
+  selection.call(drag)
+}
 
 /**
  * Horizontal/vertical reference lines (hysteresis indicators etc.). The classic
@@ -76,6 +158,11 @@ const Geometry = token<readonly PlacedAnnotation[]>('annotations.geometry')
  * clipped, but never inheriting the scroll container's transient translateX.
  */
 export function annotationsModule(): ChartModule {
+  // Set once in mount(), read from the render step's drag handlers via the same closure
+  // trick zoomModule uses for its ZoomBehavior — RenderStepContext carries no runtime handle.
+  let moduleRt: ModuleRuntime | null = null
+  const dragCallbacks = new Map<string, DragCallbacks>()
+
   return {
     id: 'annotations',
 
@@ -122,7 +209,7 @@ export function annotationsModule(): ChartModule {
               return { ...ann, x1: 0, x2: layout.innerWidth, y1: y, y2: y }
             }
             const x = scales.x(ann.x)
-            return { ...ann, x1: x, x2: x, y1: 0, y2: layout.innerHeight }
+            return { ...ann, x1: x, x2: x, y1: 0, y2: layout.innerHeight, draggable: false, dragBounds: null }
           })
         },
       }),
@@ -151,6 +238,14 @@ export function annotationsModule(): ChartModule {
             .style('opacity', 0)
           enter.append('line').attr('pointer-events', 'stroke')
           enter.append('title')
+          // Wider invisible hit-area for draggable horizontal lines. Always present (inert when
+          // not draggable, via pointer-events below) rather than conditionally appended, so the
+          // enter selection stays uniform across every annotation.
+          enter
+            .append('rect')
+            .attr('class', 'lc-annotation-drag')
+            .attr('fill', 'transparent')
+            .call(attachDrag, () => moduleRt, id => dragCallbacks.get(id))
 
           const merged = enter.merge(groups)
 
@@ -160,6 +255,10 @@ export function annotationsModule(): ChartModule {
             .attr('stroke-width', ann => ann.thickness)
             .attr('stroke-dasharray', ann => (ann.dashed ? '6 4' : null))
           merged.select<SVGTitleElement>('title').text(ann => ann.label)
+          merged
+            .select<SVGRectElement>('.lc-annotation-drag')
+            .style('cursor', d => (d.draggable ? 'ns-resize' : null))
+            .style('pointer-events', d => (d.draggable ? 'all' : 'none'))
 
           const applyGeom = (sel: d3.Selection<SVGLineElement, PlacedAnnotation, SVGGElement, unknown>): void => {
             sel
@@ -168,13 +267,24 @@ export function annotationsModule(): ChartModule {
               .attr('y1', d => d.y1)
               .attr('y2', d => d.y2)
           }
+          const applyRectGeom = (sel: d3.Selection<SVGRectElement, PlacedAnnotation, SVGGElement, unknown>): void => {
+            sel
+              .attr('x', d => d.x1)
+              .attr('width', d => Math.max(0, d.x2 - d.x1))
+              .attr('y', d => d.y1 - DRAG_HIT_HALF_HEIGHT)
+              .attr('height', DRAG_HIT_HALF_HEIGHT * 2)
+          }
 
-          // Entering lines snap to target geometry so the visible animation is
+          // Entering lines/hit-areas snap to target geometry so the visible animation is
           // only the opacity fade — otherwise they interpolate from (0,0).
           applyGeom(enter.select<SVGLineElement>('line'))
+          applyRectGeom(enter.select<SVGRectElement>('.lc-annotation-drag'))
           anim.position(merged.select<SVGLineElement>('line'), 'free', s =>
             applyGeom(s as d3.Selection<SVGLineElement, PlacedAnnotation, SVGGElement, unknown>),
           )
+          // The hit-area is invisible, so it snaps rather than animating — it only needs to be
+          // correct by the time a drag can start, not to visually track the line's transition.
+          applyRectGeom(merged.select<SVGRectElement>('.lc-annotation-drag'))
           anim.position(merged, 'free', s =>
             (s as d3.Selection<SVGGElement, PlacedAnnotation, SVGGElement, unknown>).style(
               'opacity',
@@ -186,6 +296,7 @@ export function annotationsModule(): ChartModule {
     ],
 
     mount(rt) {
+      moduleRt = rt
       const store = rt.store(AnnotationStore)
       // Horizontal annotations are pinned to an axis: cascade-removed with it.
       rt.provideCommand('annotations.dropAxis', (axisId: string) => {
@@ -200,6 +311,10 @@ export function annotationsModule(): ChartModule {
         }
         if (touched) store.set({ annotations: next })
       })
+
+      return () => {
+        moduleRt = null
+      }
     },
 
     api(rt) {
@@ -222,6 +337,12 @@ export function annotationsModule(): ChartModule {
           // Requested axis when it exists, otherwise the first axis.
           const axisId =
             (rt.command('axes.resolveId', settings?.axis ?? '') as string | undefined) ?? 'default'
+          const draggable = settings?.draggable ?? false
+          if (draggable && (settings?.onDrag || settings?.onDragEnd)) {
+            dragCallbacks.set(name, { onDrag: settings.onDrag, onDragEnd: settings.onDragEnd })
+          } else {
+            dragCallbacks.delete(name)
+          }
           put({
             type: 'horizontal',
             id: name,
@@ -231,6 +352,8 @@ export function annotationsModule(): ChartModule {
             color: settings?.color ?? ANNOTATION_DEFAULTS.color,
             thickness: settings?.thickness ?? ANNOTATION_DEFAULTS.thickness,
             dashed: settings?.dashed ?? ANNOTATION_DEFAULTS.dashed,
+            draggable,
+            dragBounds: settings?.dragBounds ?? null,
           })
         },
 
@@ -259,12 +382,14 @@ export function annotationsModule(): ChartModule {
           const next = new Map(current)
           next.delete(name)
           store.set({ annotations: next })
+          dragCallbacks.delete(name)
           rt.flushSync()
         },
 
         clearAnnotations: (): void => {
           if (store.get().annotations.size === 0) return
           store.set({ annotations: new Map() })
+          dragCallbacks.clear()
           rt.flushSync()
         },
       }
@@ -296,6 +421,10 @@ export function annotationsModule(): ChartModule {
                 color: raw['color'] as string,
                 thickness: raw['thickness'] as number,
                 dashed: raw['dashed'] as boolean,
+                // Callbacks are not serializable and are not restored — the host must call
+                // setHorizontalLine again after a restore to re-register onDrag/onDragEnd.
+                draggable: (raw['draggable'] as boolean | undefined) ?? false,
+                dragBounds: (raw['dragBounds'] as [number, number] | null | undefined) ?? null,
               })
             } else {
               const x = new Date(raw['x'] as string)

@@ -137,6 +137,14 @@ export interface AnnotationStyle {
 export interface HorizontalAnnotationSettings extends AnnotationStyle {
   /** Id of the y-axis this annotation is pinned to. Unknown ids fall back to the first axis. Removing the bound axis removes the annotation. */
   axis?: string
+  /** When true, the line can be dragged vertically by the viewer via a wider invisible hit-area. */
+  draggable?: boolean
+  /** Clamp for the dragged value, in the bound axis's value space. Defaults to the axis's current domain. */
+  dragBounds?: readonly [number, number]
+  /** Fires continuously while dragging, with the live value in the bound axis's value space. Does not commit. */
+  onDrag?: (value: number) => void
+  /** Fires once when the drag gesture ends; the returned value is what gets committed to the annotation's `y`. */
+  onDragEnd?: (value: number) => void
 }
 
 /** Settings for a vertical annotation — purely visual; the line position is set by its timestamp. */
@@ -355,6 +363,7 @@ export interface AnnotationHandle {
    * `y` is in the bound axis's value space and the axis treats it like a data point to ensure it remains within the ranges. `settings.axis` selects the axis (defaults to the first axis).
    * Removing the bound y-axis also removes this annotation.
    * Replaces any existing annotation with the same name.
+   * `settings.draggable` adds a wider invisible hit-area the viewer can drag vertically, clamped to `settings.dragBounds` (defaults to the axis's domain). `settings.onDrag` fires continuously with the live value (DOM-only, not yet committed); on release the new value is committed to this annotation internally and `settings.onDragEnd` fires with the final value so the host can persist it elsewhere (e.g. save it to a backend).
    */
   setHorizontalLine(name: string, y: number, label: string, settings?: HorizontalAnnotationSettings): void
   /**

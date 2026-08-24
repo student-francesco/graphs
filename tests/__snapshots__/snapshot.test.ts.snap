@@ -8,6 +8,8 @@ exports[`getSnapshot (v2) > captures the full scenario shape (golden) 1`] = `
         "axisId": "default",
         "color": "#dc2626",
         "dashed": false,
+        "dragBounds": null,
+        "draggable": false,
         "id": "upper",
         "label": "Upper bound",
         "thickness": 1.5,
