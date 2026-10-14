@@ -9,6 +9,7 @@ import {
   type StoreHandle,
   type Token,
 } from '@/lib/engine/index.ts'
+import { PALETTE } from '@/lib/defaults.ts'
 import type { CurveType, SeriesSettings, InternalDataPoint, DataKindAdapter } from '@/lib/types.ts'
 import {
   AxesDef,
@@ -52,10 +53,6 @@ export interface SeriesStoreState {
 export const SeriesStore: Token<SeriesStoreState> = token('series.store')
 
 export const DEFAULT_AXIS_ID = 'default'
-
-const PALETTE = [
-  '#e11d48', '#0891b2', '#16a34a', '#d97706', '#7c3aed', '#db2777', '#0284c7', '#4f46e5',
-]
 
 function computeOverlap(a: InternalDataPoint[], b: InternalDataPoint[]): number {
   // Key by numeric value: a Set compares Date objects by reference, so two Dates

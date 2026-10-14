@@ -1,8 +1,8 @@
 import type { AnimationMode, EasingType } from '@/lib/types.ts'
-import type { Harness } from './state.ts'
+import type { BaseHarness } from './state.ts'
 
-/** Animation tab: mode per operation, duration, easing, rolling window size. */
-export function initAnimationTab(h: Harness): void {
+/** Animation tab: mode per operation, duration, easing — shared by every chart type. */
+export function initAnimationTab(h: BaseHarness): void {
   const { chart, setLog } = h
 
   const animDurationInput = document.getElementById('anim-duration') as HTMLInputElement
@@ -36,12 +36,4 @@ export function initAnimationTab(h: Harness): void {
   animUpdateDataSelect.addEventListener('change', syncAnimationSettings)
   animAppendSelect.addEventListener('change', syncAnimationSettings)
   animEasingSelect.addEventListener('change', syncAnimationSettings)
-
-  const maxDataPointsInput = document.getElementById('max-data-points') as HTMLInputElement
-  maxDataPointsInput.addEventListener('change', () => {
-    const raw = maxDataPointsInput.value.trim()
-    const maxDataPoints = raw === '' ? null : Math.max(1, parseInt(raw, 10) || 1)
-    chart.updateSettings({ maxDataPoints })
-    setLog(`updateSettings({ maxDataPoints: ${maxDataPoints ?? 'null'} })`)
-  })
 }

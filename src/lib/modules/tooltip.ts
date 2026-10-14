@@ -1,42 +1,32 @@
 import { renderStep, type ChartModule } from '@/lib/engine/index.ts'
 import { TooltipController } from '@/lib/tooltip.ts'
-import type { InternalDataPoint } from '@/lib/types.ts'
-import { HasData, Scales, Settings, VisibleSeries } from './tokens.ts'
-
-interface HoverDatum extends InternalDataPoint {
-  seriesId: string
-  /** Precomputed pixel y — uses the series' own axis scale. */
-  _y: number
-}
+import { BaseSettings, HoverTargets, type HoverTarget } from './tokens.ts'
 
 /**
- * Tooltip + invisible hover zones. One hit circle per RAW data point per series
- * (each datum carries its own axis's pixel y, so multi-axis charts hit
- * accurately). The controller div lives on document.body and is rebuilt when
- * the theme or format settings change.
+ * Tooltip + invisible hover zones, chart-agnostic. Geometry modules contribute
+ * their hit targets to HoverTargets (line: a circle per raw point via the
+ * hover-points module; pie: an arc path per slice); this module renders one
+ * transparent zone per target and shows the target's content on hover. The
+ * controller div lives on document.body and is rebuilt when the theme changes.
  */
 export function tooltipModule(): ChartModule {
   let controller: TooltipController | null = null
-  let controllerKey = ''
+  let controllerTheme = ''
 
   return {
     id: 'tooltip',
-    defaults: { showTooltip: true, tooltipDateFormat: '%b %d, %Y', tooltipValueFormat: '.2f' },
+    defaults: { showTooltip: true },
 
     render: [
       renderStep({
         id: 'tooltip.zones',
-        reads: {
-          visible: VisibleSeries,
-          scales: Scales,
-          settings: Settings,
-          hasData: HasData,
-        },
+        reads: { targets: HoverTargets, settings: BaseSettings },
         layer: { name: 'hover', z: 80, host: 'scroll' },
-        run: ({ visible, scales, settings, hasData }, ctx) => {
+        run: ({ targets, settings }, ctx) => {
           const layer = ctx.layer!.classed('lc-hover-zones', true)
+          const all: HoverTarget[] = targets.flat()
 
-          const active = settings.showTooltip && hasData
+          const active = settings.showTooltip && all.length > 0
           if (!active) {
             controller?.destroy()
             controller = null
@@ -44,45 +34,40 @@ export function tooltipModule(): ChartModule {
             return
           }
 
-          // Rebuild the controller when its inputs change (theme, formats).
-          const key = `${settings.theme}|${settings.tooltipDateFormat}|${settings.tooltipValueFormat}`
-          if (controller === null || controllerKey !== key) {
+          // Rebuild the controller when its theme changes.
+          if (controller === null || controllerTheme !== settings.theme) {
             controller?.destroy()
-            controller = new TooltipController(settings)
-            controllerKey = key
-          }
-
-          const hitRadius = Math.max(
-            Math.max(...Array.from(visible.values()).map(s => s.resolved.dotRadius)),
-            8,
-          )
-          const multiSeries = visible.size > 1
-
-          const allData: HoverDatum[] = []
-          for (const s of visible.values()) {
-            const yScale = scales.y.get(s.resolved.axisId) ?? scales.y.values().next().value!
-            for (const d of s.raw) {
-              allData.push({ ...d, seriesId: s.id, _y: yScale(d.y) })
-            }
+            controller = new TooltipController(settings.theme)
+            controllerTheme = settings.theme
           }
 
           const zones = layer
-            .selectAll<SVGCircleElement, HoverDatum>('.lc-hover-zone')
-            .data(allData, d => `${+d.x}-${d.seriesId}`)
+            .selectAll<SVGElement, HoverTarget>('.lc-hover-zone')
+            .data(all, d => d.key)
 
           zones
             .enter()
-            .append('circle')
+            .append<SVGElement>(d => document.createElementNS('http://www.w3.org/2000/svg', tagFor(d)))
             .attr('class', 'lc-hover-zone')
             .attr('fill', 'transparent')
             .attr('stroke', 'none')
             .attr('cursor', 'crosshair')
             .merge(zones)
-            .attr('r', hitRadius)
-            .attr('cx', d => scales.x(d.x))
-            .attr('cy', d => d._y)
-            .on('mouseenter', (event: MouseEvent, d: HoverDatum) => {
-              controller?.show(event, d, multiSeries ? d.seriesId : undefined)
+            .each(function (d) {
+              const el = this as SVGElement
+              const s = d.shape
+              if (s.kind === 'circle') {
+                el.setAttribute('r', String(s.r))
+                el.setAttribute('cx', String(s.cx))
+                el.setAttribute('cy', String(s.cy))
+              } else {
+                el.setAttribute('d', s.d)
+                if (s.transform) el.setAttribute('transform', s.transform)
+                else el.removeAttribute('transform')
+              }
+            })
+            .on('mouseenter', (event: MouseEvent, d: HoverTarget) => {
+              controller?.show(event, d.content())
             })
             .on('mousemove', (event: MouseEvent) => {
               controller?.move(event)
@@ -104,3 +89,6 @@ export function tooltipModule(): ChartModule {
     },
   }
 }
+
+/** A target's key never changes shape kind (line → circles, pie → paths). */
+const tagFor = (t: HoverTarget): 'circle' | 'path' => (t.shape.kind === 'circle' ? 'circle' : 'path')

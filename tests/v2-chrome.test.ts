@@ -84,6 +84,7 @@ describe('v2 scaffold', () => {
       'dots',
       'value-labels',
       'annotations',
+      'hover-points',
       'tooltip',
       'export',
       'zoom',

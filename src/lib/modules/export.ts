@@ -1,5 +1,5 @@
 import { type ChartModule } from '@/lib/engine/index.ts'
-import { ContainerSize, D3Ctx, Settings } from './tokens.ts'
+import { BaseSettings, ContainerSize, D3Ctx } from './tokens.ts'
 import {renderExport} from '../export/index.ts'
 import type { PdfExportOptions } from '../types.ts'
 
@@ -30,7 +30,7 @@ export function exportModule(): ChartModule {
           // axis alone otherwise), applied through the same Settings store updateSettings
           // writes to. Restored once the SVG has been rasterized so the live, on-screen
           // chart's labels are unaffected by the export.
-          const settings = rt.store(Settings)
+          const settings = rt.store(BaseSettings)
           const { xLabel: previousXLabel, yLabel: previousYLabel } = settings.get()
           const overridesXLabel = options?.xLabel !== undefined
           const overridesYLabel = options?.yLabel !== undefined

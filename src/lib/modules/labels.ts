@@ -1,7 +1,7 @@
 import { prepareStep, renderStep, token, type ChartModule } from '@/lib/engine/index.ts'
 import { TITLE_SPACE, X_LABEL_SPACE, Y_LABEL_SPACE } from '@/lib/defaults.ts'
 import type { ChartMargins } from '@/lib/types.ts'
-import { Layout, MarginRequests, Settings } from './tokens.ts'
+import { BaseSettings, Layout, MarginRequests } from './tokens.ts'
 
 interface LabelPlan {
   title: string | null
@@ -41,7 +41,7 @@ export function labelsModule(): ChartModule {
       prepareStep({
         id: 'labels.measure',
         description: 'Read title and axis-label text and request the margins needed to fit them.',
-        reads: { settings: Settings },
+        reads: { settings: BaseSettings },
         provides: LabelPlanTok,
         contributes: [{ to: MarginRequests, select: plan => plan.marginRequest }],
         run: ({ settings }): LabelPlan => ({

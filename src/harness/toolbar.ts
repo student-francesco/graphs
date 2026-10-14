@@ -1,6 +1,14 @@
 import type { RawDataPoint } from '@/lib/index.ts'
 import { generateSeries, generateNumericSeries, slideWindow, slideNumericWindow } from './data.ts'
-import type { Harness } from './state.ts'
+import type { BaseHarness, Harness } from './state.ts'
+
+/** Header "Save PDF" — chart-agnostic, so pie mode binds it too. */
+export function initSavePdfButton(h: BaseHarness): void {
+  document.getElementById('btn-save-pdf')!.addEventListener('click', () => {
+    h.chart.saveToPdf('chart')
+    h.setLog('saveToPdf("chart")')
+  })
+}
 
 /** Header controls: quick colors, append/auto/update/clear/reload, dots, grid, zoom, PDF. */
 export function initToolbar(h: Harness): void {
@@ -207,9 +215,14 @@ export function initToolbar(h: Harness): void {
     setLog(`updateSettings({ zoomBounded: ${zoomBounded} })`)
   })
 
-  document.getElementById('btn-save-pdf')!.addEventListener('click', () => {
-    chart.saveToPdf('chart')
-    setLog('saveToPdf("chart")')
+  initSavePdfButton(h)
+
+  const maxDataPointsInput = document.getElementById('max-data-points') as HTMLInputElement
+  maxDataPointsInput.addEventListener('change', () => {
+    const raw = maxDataPointsInput.value.trim()
+    const maxDataPoints = raw === '' ? null : Math.max(1, parseInt(raw, 10) || 1)
+    chart.updateSettings({ maxDataPoints })
+    setLog(`updateSettings({ maxDataPoints: ${maxDataPoints ?? 'null'} })`)
   })
 
   let multiSeriesAnimationTimer: ReturnType<typeof setInterval> | null = null

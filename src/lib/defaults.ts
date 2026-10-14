@@ -1,4 +1,9 @@
-import type { ChartSettings } from './types.ts'
+import type { ChartSettings, PieChartSettings } from './types.ts'
+
+/** Categorical palette new series / pie slices cycle through. */
+export const PALETTE: readonly string[] = [
+  '#e11d48', '#0891b2', '#16a34a', '#d97706', '#7c3aed', '#db2777', '#0284c7', '#4f46e5',
+]
 
 /** Horizontal space reserved per additional stacked y-axis (px) */
 export const AXIS_WIDTH = 50
@@ -69,4 +74,31 @@ export const DEFAULT_SETTINGS: ChartSettings = {
   zoomMode: 'x',
   zoomScaleExtent: [1, 100],
   zoomBounded: true,
+}
+
+/** Complete pie chart defaults — the pie's settings module ships this whole object. */
+export const DEFAULT_PIE_SETTINGS: PieChartSettings = {
+  showTooltip: true,
+
+  animationDuration: 750,
+  easingType: 'easeCubicInOut',
+  setDataAnimation: 'drawOn',
+  updateDataAnimation: 'morph',
+  appendAnimation: 'none',
+
+  margins: { top: 20, right: 20, bottom: 20, left: 20 },
+  ariaLabel: 'Pie chart',
+
+  theme: 'light',
+  title: null,
+  xLabel: null,
+  yLabel: null,
+
+  pieColors: [...PALETTE],
+  innerRadius: 0,
+  sliceBorderColor: null,
+  sliceBorderWidth: 1,
+  sliceLabels: 'label-percent',
+  sliceLabelPosition: 'outside',
+  sliceValueFormat: ',.2~f',
 }

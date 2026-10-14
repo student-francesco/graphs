@@ -1,8 +1,8 @@
 import type { PdfExportOptions } from '@/lib/types.ts'
-import type { Harness } from './state.ts'
+import type { BaseHarness } from './state.ts'
 
 /** Export tab: PDF filename, footer bands, PDF-only title/axis-title overrides. */
-export function initExportTab(h: Harness): void {
+export function initExportTab(h: BaseHarness): void {
   const { chart, setLog } = h
 
   const filenameInput = document.getElementById('pdf-filename') as HTMLInputElement

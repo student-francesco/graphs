@@ -2,8 +2,11 @@ import type * as d3 from 'd3'
 import { collectToken, SettingsToken, token, type CollectToken, type Token } from '@/lib/engine/index.ts'
 import type {
   AnimationMode,
+  BaseChartSettings,
   ChartMargins,
   ChartSettings,
+  PieChartSettings,
+  TooltipContent,
   CurveType,
   DataPointKindValue,
   InternalDataPoint
@@ -17,6 +20,14 @@ import type {
 
 /** Typed alias of the engine's settings store (same id, chart-level type). */
 export const Settings = SettingsToken as unknown as Token<ChartSettings>
+
+/** The same settings store, typed to the keys every chart type shares — what the
+ *  chart-agnostic modules (context, settings, labels, export, animation, tooltip,
+ *  skeleton) read, so they type-check against any chart's settings. */
+export const BaseSettings = SettingsToken as unknown as Token<BaseChartSettings>
+
+/** The same settings store, typed for the pie chart's modules. */
+export const PieSettings = SettingsToken as unknown as Token<PieChartSettings>
 
 export interface D3Context {
   readonly container: HTMLElement
@@ -62,7 +73,8 @@ export const Layout: Token<LayoutBox> = token('layout.box')
 export const MarginRequests: CollectToken<Partial<ChartMargins>> =
   collectToken('layout.marginRequests')
 
-/** True when any series holds at least one point — provided by the series module. */
+/** True when the chart has data to draw — provided by the series module (line) or
+ *  the pie-data module (pie). */
 export const HasData: Token<boolean> = token('series.hasData')
 
 // ---------------------------------------------------------------------------
@@ -265,6 +277,65 @@ export const AnimationCtx: Token<AnimationCtxValue> = token('animation.ctx')
  */
 export const LineBlurFilter: Token<string | null> = token('axesRender.lineBlurFilter')
 
+// ---------------------------------------------------------------------------
+// Tooltip hover targets
+// ---------------------------------------------------------------------------
+
+/** Hit geometry in the hover layer's coordinate space (the inner plot box). */
+export type HoverShape =
+  | { readonly kind: 'circle'; readonly cx: number; readonly cy: number; readonly r: number }
+  | { readonly kind: 'path'; readonly d: string; readonly transform?: string }
+
+export interface HoverTarget {
+  /** Stable join key — one hit zone per key. */
+  readonly key: string
+  readonly shape: HoverShape
+  /** Built lazily on hover, so charts with many targets don't format every pass. */
+  content(): TooltipContent
+}
+
+/**
+ * What the tooltip shows and where it listens. Any geometry module contributes its
+ * hit targets (line: one circle per raw point via hover-points; pie: one arc path
+ * per slice); the tooltip module renders the invisible zones and the popup.
+ */
+export const HoverTargets: CollectToken<readonly HoverTarget[]> = collectToken('tooltip.targets')
+
+// ---------------------------------------------------------------------------
+// Pie
+// ---------------------------------------------------------------------------
+
+/** One slice with its colour cascade resolved (data colour > override > palette). */
+export interface ResolvedPieSlice {
+  readonly label: string
+  readonly value: number
+  readonly color: string
+}
+
+/** Slices in input order, colours resolved — provided by the pie-data module. */
+export const PieSlices: Token<readonly ResolvedPieSlice[]> = token('pie.slices')
+
+export interface PieArc extends ResolvedPieSlice {
+  /** Fraction of the total (0..1). */
+  readonly percent: number
+  readonly startAngle: number
+  readonly endAngle: number
+  readonly padAngle: number
+}
+
+export interface PieGeometryValue {
+  /** Pie centre in inner-box coordinates. */
+  readonly cx: number
+  readonly cy: number
+  readonly outerRadius: number
+  readonly innerRadius: number
+  readonly total: number
+  readonly arcs: readonly PieArc[]
+}
+
+/** Laid-out arcs — provided by the pie-slices module's layout step. */
+export const PieGeometry: Token<PieGeometryValue> = token('pie.geometry')
+
 /** Hints for plan errors: token id → module that provides it. */
 export const KNOWN_PROVIDERS: ReadonlyMap<string, string> = new Map([
   [D3Ctx.id, 'context'],
@@ -281,4 +352,6 @@ export const KNOWN_PROVIDERS: ReadonlyMap<string, string> = new Map([
   [AnimationCtx.id, 'animation'],
   [ViewTransform.id, 'zoom'],
   [LineBlurFilter.id, 'axes-render'],
+  [PieSlices.id, 'pie-data'],
+  [PieGeometry.id, 'pie-slices'],
 ])

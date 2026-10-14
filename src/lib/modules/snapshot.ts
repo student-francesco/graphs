@@ -33,7 +33,7 @@ export function snapshotModule(): ChartModule {
         restoreSnapshot: (snapshot: ChartSnapshotV2): void => {
           if (snapshot?.version !== 2) {
             throw new Error(
-              `LineChart: unsupported snapshot version ${String(
+              `${rt.chartName}: unsupported snapshot version ${String(
                 (snapshot as { version?: unknown })?.version,
               )} — this build reads version 2 snapshots only`,
             )
@@ -48,7 +48,7 @@ export function snapshotModule(): ChartModule {
             }
           }
           for (const orphan of Object.keys(slices)) {
-            console.warn(`LineChart: snapshot slice "${orphan}" has no registered module — skipped`)
+            console.warn(`${rt.chartName}: snapshot slice "${orphan}" has no registered module — skipped`)
           }
           rt.requestRender({ kind: 'restore' })
           rt.flushSync()

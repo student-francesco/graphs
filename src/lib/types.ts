@@ -151,6 +151,34 @@ export interface HorizontalAnnotationSettings extends AnnotationStyle {
 export type VerticalAnnotationSettings = AnnotationStyle
 
 /**
+ * Settings every chart type shares — read by the chart-agnostic modules (context,
+ * settings, labels, export, animation, tooltip, skeleton). Each chart's settings
+ * interface extends this one.
+ */
+export interface BaseChartSettings {
+  // ── Tooltip ────────────────────────────────────────────────────────────────
+  showTooltip: boolean
+
+  // ── Animation ──────────────────────────────────────────────────────────────
+  animationDuration: number
+  easingType: EasingType
+  setDataAnimation: AnimationMode
+  updateDataAnimation: AnimationMode
+  /** Only meaningful for charts with an append API (line charts). */
+  appendAnimation: AnimationMode
+
+  // ── Layout ─────────────────────────────────────────────────────────────────
+  margins: ChartMargins
+  ariaLabel: string
+
+  // ── Theme + labels ─────────────────────────────────────────────────────────
+  theme: 'light' | 'dark'
+  title: string | null
+  xLabel: string | null
+  yLabel: string | null
+}
+
+/**
  * Chart-wide settings. Extends SeriesSettings and AxisSettings so that every per-series and
  * per-axis property has a global default here. Per-series/axis overrides set via
  * updateSeriesSettings / updateAxisSettings take precedence over these values at render time.
@@ -158,7 +186,7 @@ export type VerticalAnnotationSettings = AnnotationStyle
  * Note: `color` is inherited from both SeriesSettings and AxisSettings as an optional field.
  * At chart scope it is inert — use `lineColor` as the authoritative chart-wide line colour default.
  */
-export interface ChartSettings extends SeriesSettings, AxisSettings {
+export interface ChartSettings extends SeriesSettings, AxisSettings, BaseChartSettings {
   // ── Re-declared as required from SeriesSettings (chart-wide defaults) ──────
   curveType: CurveType
   lineWeight: number
@@ -189,20 +217,11 @@ export interface ChartSettings extends SeriesSettings, AxisSettings {
    *  temporal charts always plot a time scale and ignore this field. */
   xScaleType: 'linear' | 'log'
 
-  // ── Tooltip ────────────────────────────────────────────────────────────────
-  showTooltip: boolean
+  // ── Tooltip formats (the line chart's hover-points module) ──────────────────
   tooltipDateFormat: string
   tooltipValueFormat: string
 
-  // ── Animation ──────────────────────────────────────────────────────────────
-  animationDuration: number
-  easingType: EasingType
-  setDataAnimation: AnimationMode
-  updateDataAnimation: AnimationMode
-  appendAnimation: AnimationMode
-
   // ── Layout ─────────────────────────────────────────────────────────────────
-  margins: ChartMargins
   xAxisFormatter: ((value: Date, index: number) => string) | null
   yAxisFormatter: ((value: number, index: number) => string) | null
   /**
@@ -217,7 +236,6 @@ export interface ChartSettings extends SeriesSettings, AxisSettings {
    * no padding, so the first/last data points map exactly to the plot's left/right edges.
    */
   xDomainPadding: number
-  ariaLabel: string
 
   // ── X-axis line blur ───────────────────────────────────────────────────────
   /** Blurs the portion of each series' line beneath the x-axis baseline, so it
@@ -231,12 +249,6 @@ export interface ChartSettings extends SeriesSettings, AxisSettings {
   overlapThreshold: number
   maxDataPoints: number | null
 
-  // ── Theme + labels ─────────────────────────────────────────────────────────
-  theme: 'light' | 'dark'
-  title: string | null
-  xLabel: string | null
-  yLabel: string | null
-
   // ── Pan / zoom ─────────────────────────────────────────────────────────────
   /** Master switch for pan + zoom interactions (wheel zoom, drag pan, pinch zoom, dblclick zoom). */
   zoomEnabled: boolean
@@ -249,6 +261,70 @@ export interface ChartSettings extends SeriesSettings, AxisSettings {
    *  overscroll, down to ~1 point remaining visible, but never runs away indefinitely.
    *  Set false for fully unrestricted pan/zoom. */
   zoomBounded: boolean
+}
+
+/** What a pie slice label shows. */
+export type SliceLabelContent =
+  | 'none'
+  | 'label'
+  | 'value'
+  | 'percent'
+  | 'label-value'
+  | 'label-percent'
+
+/**
+ * Pie chart settings: the shared chart settings plus the pie's own keys. Per-slice
+ * colours cascade: the slice's `color` in the data > `setSliceColor` override >
+ * `pieColors[paletteIndex]` (palette indexes are assigned per label in first-seen
+ * order and stay stable across updates until `clearData`).
+ */
+export interface PieChartSettings extends BaseChartSettings {
+  /** Palette slices without an explicit colour cycle through. */
+  pieColors: string[]
+  /** Donut hole as a fraction of the outer radius (0 = full pie, max 0.9). */
+  innerRadius: number
+  /** Slice separator stroke; null = the theme's surface colour. */
+  sliceBorderColor: string | null
+  /** Slice separator stroke width (px); 0 disables it. */
+  sliceBorderWidth: number
+  /** What each slice's text label shows; 'none' hides them. */
+  sliceLabels: SliceLabelContent
+  /** Labels inside the slices, or outside with leader lines. */
+  sliceLabelPosition: 'inside' | 'outside'
+  /** d3-format specifier for slice values (labels and tooltip). */
+  sliceValueFormat: string
+}
+
+/** One pie slice as sent over JS interop. `label` is the slice's identity — unique per chart. */
+export interface PieSlice {
+  label: string
+  value: number
+  /** Explicit colour; overrides setSliceColor and the palette. */
+  color?: string
+}
+
+/** The pie-data module's snapshot slice. */
+export interface PieDataSnapshot {
+  slices: PieSlice[]
+  /** setSliceColor overrides, keyed by label. */
+  colorOverrides: Record<string, string>
+  /** Ordinal palette assignments (label → palette index) plus the cursor. */
+  palette: { assignments: Record<string, number>; next: number }
+}
+
+/** Pie settings are all JSON-safe — the snapshot carries them whole. */
+export type SerializablePieChartSettings = PieChartSettings
+
+/** Pre-formatted tooltip content a hover target shows (internal). */
+export interface TooltipContent {
+  /** Small heading line (e.g. the series name on multi-series charts). */
+  title?: string
+  /** Secondary line (formatted x, slice label). */
+  label?: string
+  /** Emphasised value line. */
+  value: string
+  /** Optional colour swatch shown before the label. */
+  color?: string
 }
 
 /**

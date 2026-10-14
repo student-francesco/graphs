@@ -135,6 +135,8 @@ export interface ModuleRuntime {
   flushSync(): void
   readonly layers: LayerManager
   readonly modules: readonly ChartModule[]
+  /** The chart's name ('LineChart', 'PieChart') — the prefix for user-facing errors. */
+  readonly chartName: string
   /** True once destroy() ran — long-lived callbacks (observers) must bail. */
   isDestroyed(): boolean
 }

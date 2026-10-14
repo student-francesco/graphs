@@ -17,6 +17,7 @@ import { skeletonModule } from '@/lib/modules/skeleton.ts'
 import { smoothingModule } from '@/lib/modules/smoothing.ts'
 import { snapshotModule } from '@/lib/modules/snapshot.ts'
 import { KNOWN_PROVIDERS } from '@/lib/modules/tokens.ts'
+import { hoverPointsModule } from '@/lib/modules/hover-points.ts'
 import { tooltipModule } from '@/lib/modules/tooltip.ts'
 import { valueLabelsModule } from '@/lib/modules/value-labels.ts'
 import { zoomModule } from '@/lib/modules/zoom.ts'
@@ -60,6 +61,7 @@ export function LINE_MODULES(container: HTMLElement): ChartModule[] {
     dotsModule(),
     valueLabelsModule(),
     annotationsModule(),
+    hoverPointsModule(),
     tooltipModule(),
     exportModule(),
     zoomModule(),

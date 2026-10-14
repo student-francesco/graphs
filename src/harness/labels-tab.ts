@@ -1,7 +1,7 @@
-import type { Harness } from './state.ts'
+import type { BaseHarness } from './state.ts'
 
 /** Labels tab: chart title, x label, y label. */
-export function initLabelsTab(h: Harness): void {
+export function initLabelsTab(h: BaseHarness): void {
   const { chart, setLog } = h
 
   const chartTitleInput = document.getElementById('chart-title') as HTMLInputElement

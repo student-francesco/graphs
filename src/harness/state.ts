@@ -1,4 +1,41 @@
-import type { LineChartHandle, RawDataPoint } from '@/lib/index.ts'
+import type {
+  BaseChartSettings,
+  LineChartHandle,
+  PDFExportOptions,
+  PieChartHandle,
+  RawDataPoint,
+} from '@/lib/index.ts'
+
+export type ChartKind = 'temporal' | 'numeric' | 'pie'
+
+/** A snapshot of any chart type, as the shared snapshot tab sees it. */
+export interface AnySnapshot {
+  version: 2
+  modules: Record<string, unknown>
+}
+
+/** The API every chart type shares — what the chart-agnostic tabs drive. */
+export interface SharedChartApi {
+  updateSettings(settings: Partial<BaseChartSettings>): void
+  saveToPdf(filename: string, options?: PDFExportOptions): Promise<void>
+  getSnapshot(): AnySnapshot
+  restoreSnapshot(snapshot: AnySnapshot): void
+  clearData(): void
+}
+
+/** Harness state every tab gets, whatever the chart type. */
+export interface BaseHarness {
+  chart: SharedChartApi
+  chartKind: ChartKind
+  impl: 'monolith' | 'modules'
+  setLog(msg: string): void
+}
+
+/** Pie-mode harness state. */
+export interface PieHarness extends BaseHarness {
+  chart: PieChartHandle
+  chartKind: 'pie'
+}
 
 export interface AxisRecord {
   name: string
@@ -12,11 +49,9 @@ export interface AxisRecord {
  * Shared harness state threaded through every tab module. Mirrors what a Blazor
  * component would track on its side of the interop boundary.
  */
-export interface Harness {
+export interface Harness extends BaseHarness {
   chart: LineChartHandle
   chartKind: 'temporal' | 'numeric'
-  impl: 'monolith' | 'modules'
-  setLog(msg: string): void
   /** Per-series data store for append operations */
   seriesDataMap: Map<string, RawDataPoint[]>
   seriesColorMap: Map<string, string>
@@ -38,20 +73,28 @@ export const PALETTE = [
   '#e11d48', '#0891b2', '#16a34a', '#d97706', '#7c3aed', '#db2777', '#0284c7', '#4f46e5',
 ]
 
+const logSink = (): ((msg: string) => void) => {
+  const log = document.getElementById('log')!
+  return msg => {
+    log.textContent = msg
+  }
+}
+
+export function createPieHarness(chart: PieChartHandle): PieHarness {
+  return { chart, chartKind: 'pie', impl: 'modules', setLog: logSink() }
+}
+
 export function createHarness(
   chart: LineChartHandle,
   impl: Harness['impl'],
   chartKind: 'temporal' | 'numeric' = 'temporal',
 ): Harness {
-  const log = document.getElementById('log')!
   const seriesDataMap = new Map<string, RawDataPoint[]>([['default', []]])
   return {
     chart,
     chartKind,
     impl,
-    setLog: msg => {
-      log.textContent = msg
-    },
+    setLog: logSink(),
     seriesDataMap,
     seriesColorMap: new Map([['default', '#4f46e5']]),
     axisRecords: new Map([['default', { name: 'default', color: '#4f46e5' }]]),

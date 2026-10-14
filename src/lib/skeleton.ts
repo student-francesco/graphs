@@ -9,11 +9,15 @@ const GRADIENT_ID_PREFIX = 'lc-shimmer-'
 // Unique counter so multiple charts on one page don't share gradient IDs
 let instanceCounter = 0
 
+/** Placeholder silhouette: axes + plot box, or a centred disc for radial charts. */
+export type SkeletonShape = 'cartesian' | 'radial'
+
 export function renderSkeleton(
   svg: SvgSelection,
   width: number,
   height: number,
   margins: ChartMargins,
+  shape: SkeletonShape = 'cartesian',
 ): void {
   const gradientId = `${GRADIENT_ID_PREFIX}${++instanceCounter}`
   const innerW = width - margins.left - margins.right
@@ -54,6 +58,16 @@ export function renderSkeleton(
     .append('g')
     .attr('class', SKELETON_CLASS)
     .attr('transform', `translate(${margins.left},${margins.top})`)
+
+  if (shape === 'radial') {
+    g.append('circle')
+      .attr('cx', innerW / 2)
+      .attr('cy', innerH / 2)
+      .attr('r', Math.max(0, Math.min(innerW, innerH) / 2))
+      .attr('fill', fill)
+      .attr('opacity', 0.5)
+    return
+  }
 
   // Y-axis label bars
   const yLabelCount = 5

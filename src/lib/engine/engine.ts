@@ -13,6 +13,8 @@ export interface EngineOptions {
   settings?: Record<string, unknown>
   /** token id → module id hints for "did you forget module X?" plan errors. */
   knownProviders?: ReadonlyMap<string, string>
+  /** Chart name used as the prefix of user-facing errors (default 'LineChart'). */
+  name?: string
 }
 
 /**
@@ -27,6 +29,7 @@ export class ChartEngine {
   readonly layers = new LayerManager()
   readonly plan: ComputationPlan
   readonly modules: readonly ChartModule[]
+  readonly name: string
 
   private readonly stores: StoreRegistry
   private readonly executor: Executor
@@ -38,6 +41,7 @@ export class ChartEngine {
 
   constructor(modules: readonly ChartModule[], opts: EngineOptions = {}) {
     this.modules = modules
+    this.name = opts.name ?? 'LineChart'
 
     const ids = new Set<string>()
     for (const m of modules) {
@@ -105,6 +109,7 @@ export class ChartEngine {
       flushSync: () => this.scheduler.flushSync(),
       layers: this.layers,
       modules: this.modules,
+      chartName: this.name,
       isDestroyed: () => this.destroyed,
     }
   }
@@ -164,6 +169,6 @@ export class ChartEngine {
   }
 
   private assertAlive(): void {
-    if (this.destroyed) throw new Error('LineChart: called on destroyed instance')
+    if (this.destroyed) throw new Error(`${this.name}: called on destroyed instance`)
   }
 }

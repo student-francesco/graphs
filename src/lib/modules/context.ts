@@ -10,8 +10,8 @@ import {
   ContainerSize,
   D3Ctx,
   Layout,
+  BaseSettings,
   MarginRequests,
-  Settings,
   type D3Context,
   type LayoutBox,
 } from './tokens.ts'
@@ -26,7 +26,17 @@ import {
  * It must be FIRST in a chart's module list — later modules' mounts may resolve
  * layers, which exist only after this module's mount realized them.
  */
-export function contextModule(container: HTMLElement): ChartModule {
+export interface ContextModuleOptions {
+  /**
+   * The scrolling-strip chrome: the chart-area clip path, the left fade mask and
+   * the left-margin blur overlay (default true). Charts that never scroll (pie)
+   * turn it off so content in the margins is neither clipped nor blurred.
+   */
+  readonly scrollChrome?: boolean
+}
+
+export function contextModule(container: HTMLElement, opts: ContextModuleOptions = {}): ChartModule {
+  const scrollChrome = opts.scrollChrome ?? true
   let scaffold: D3Context | null = null
 
   const buildScaffold = (): D3Context => {
@@ -82,11 +92,10 @@ export function contextModule(container: HTMLElement): ChartModule {
 
     // chart area: static wrapper carrying clip + mask; scroll container is the only
     // element that ever gets a translateX during transition animations.
-    const chartAreaG = innerG
-      .append('g')
-      .attr('class', 'lc-chart-area')
-      .attr('clip-path', `url(#${clipPathId})`)
-      .attr('mask', `url(#${fadeMaskId})`)
+    const chartAreaG = innerG.append('g').attr('class', 'lc-chart-area')
+    if (scrollChrome) {
+      chartAreaG.attr('clip-path', `url(#${clipPathId})`).attr('mask', `url(#${fadeMaskId})`)
+    }
     const scrollG = chartAreaG.append('g').attr('class', 'lc-scroll-container')
 
     // Ensure container is a positioning context for the blur overlay
@@ -102,7 +111,8 @@ export function contextModule(container: HTMLElement): ChartModule {
       `backdrop-filter:blur(${blurStrength}px);-webkit-backdrop-filter:blur(${blurStrength}px)` +
       `;mask-image:linear-gradient(to right,black 0%,black ${blurEnd}%,transparent 100%)` +
       `;-webkit-mask-image:linear-gradient(to right,black 0%,black ${blurEnd}%,transparent 100%)`
-    container.appendChild(blurDiv)
+    // Without the scroll chrome the blur div stays detached (frame sizing is harmless).
+    if (scrollChrome) container.appendChild(blurDiv)
 
     // Overlay svg sits above the blur div (z-index 2): y-axes + chrome labels.
     const overlaySvg = d3
@@ -167,7 +177,7 @@ export function contextModule(container: HTMLElement): ChartModule {
       prepareStep({
         id: 'layout.merge',
         description: 'Fold all margin requests into the base margins and derive the inner plot box dimensions.',
-        reads: { settings: Settings, size: ContainerSize, requests: MarginRequests },
+        reads: { settings: BaseSettings, size: ContainerSize, requests: MarginRequests },
         provides: Layout,
         run: ({ settings, size, requests }): LayoutBox => {
           const base = settings.margins

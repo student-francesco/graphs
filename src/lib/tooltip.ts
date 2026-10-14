@@ -1,15 +1,17 @@
-import * as d3 from 'd3'
-import type { InternalDataPoint, ChartSettings } from './types.ts'
+import type { TooltipContent } from './types.ts'
 
+const escapeHtml = (s: string): string =>
+  s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`)
+
+/**
+ * The tooltip popup: a fixed div on document.body, themed, edge-aware. Chart-
+ * agnostic — it renders pre-formatted content (title / label / value, optional
+ * colour swatch) supplied by whichever hover target the pointer is over.
+ */
 export class TooltipController {
   private readonly el: HTMLDivElement
-  private readonly dateFormat: (date: Date) => string
-  private readonly valueFormat: (value: number) => string
 
-  constructor(settings: ChartSettings) {
-    this.dateFormat = d3.timeFormat(settings.tooltipDateFormat)
-    this.valueFormat = d3.format(settings.tooltipValueFormat)
-
+  constructor(theme: 'light' | 'dark') {
     this.el = document.createElement('div')
     this.el.setAttribute('role', 'tooltip')
     this.el.setAttribute('aria-live', 'polite')
@@ -18,10 +20,10 @@ export class TooltipController {
       pointerEvents: 'none',
       opacity: '0',
       transition: 'opacity 0.15s',
-      background: settings.theme === 'dark'
+      background: theme === 'dark'
         ? 'rgba(245,243,238,0.95)'
         : 'rgba(17,24,39,0.9)',
-      color: settings.theme === 'dark' ? '#1a1815' : '#f9fafb',
+      color: theme === 'dark' ? '#1a1815' : '#f9fafb',
       padding: '6px 10px',
       borderRadius: '6px',
       fontSize: '13px',
@@ -32,15 +34,18 @@ export class TooltipController {
     document.body.appendChild(this.el)
   }
 
-  show(event: MouseEvent, point: InternalDataPoint, seriesName?: string): void {
-    const namePart = seriesName
-      ? `<div style="font-size:11px;opacity:0.75;margin-bottom:2px">${seriesName}</div>`
+  show(event: MouseEvent, content: TooltipContent): void {
+    const titlePart = content.title
+      ? `<div style="font-size:11px;opacity:0.75;margin-bottom:2px">${escapeHtml(content.title)}</div>`
       : ''
-    // x is polymorphic (Date | number); the date formatter needs a Date.
+    const swatch = content.color
+      ? `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:${escapeHtml(content.color)}"></span>`
+      : ''
+    const labelPart = content.label !== undefined || swatch
+      ? `<div style="font-size:11px;opacity:0.75">${swatch}${escapeHtml(content.label ?? '')}</div>`
+      : ''
     this.el.innerHTML =
-      namePart +
-      `<div style="font-size:11px;opacity:0.75">${typeof point.x === 'number' ? this.valueFormat(point.x) : this.dateFormat(point.x)}</div>` +
-      `<div style="font-weight:600">${this.valueFormat(point.y)}</div>`
+      titlePart + labelPart + `<div style="font-weight:600">${escapeHtml(content.value)}</div>`
     this.el.style.opacity = '1'
     this.position(event)
   }

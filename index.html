@@ -111,6 +111,7 @@
           <div class="btn-group" id="chart-type-toggle">
             <button id="btn-chart-temporal">Temporal</button>
             <button id="btn-chart-numeric">Numeric</button>
+            <button id="btn-chart-pie">Pie</button>
           </div>
           <button id="btn-save-pdf">Save PDF</button>
         </div>
@@ -185,6 +186,7 @@
     <div class="tabs-container">
       <div class="tab-list" role="tablist">
         <button class="tab-btn active" data-tab="line">Line</button>
+        <button class="tab-btn" data-tab="pie" style="display:none">Pie</button>
         <button class="tab-btn" data-tab="animation">Animation</button>
         <button class="tab-btn" data-tab="series">Series</button>
         <button class="tab-btn" data-tab="axes">Axes</button>
@@ -193,6 +195,77 @@
         <button class="tab-btn" data-tab="snapshot">Snapshot</button>
         <button class="tab-btn" data-tab="export">Export</button>
         <button class="tab-btn" data-tab="modules">Modules</button>
+      </div>
+
+      <!-- Pie tab (pie mode only): data, slice colours, palette, border, donut, slice labels, tooltip, theme -->
+      <div class="tab-panel" id="tab-pie" role="tabpanel">
+        <div class="control-group">
+          <label>Data</label>
+          <button id="btn-pie-load">Load sample</button>
+          <button id="btn-pie-randomize">Randomize values</button>
+          <button id="btn-pie-add">Add slice</button>
+          <button id="btn-pie-remove">Remove slice</button>
+          <button id="btn-pie-clear" class="danger">Clear</button>
+        </div>
+        <div class="vr"></div>
+        <div class="control-group">
+          <label for="pie-slice-select">Slice</label>
+          <select id="pie-slice-select"></select>
+          <input type="color" id="pie-slice-color" value="#e11d48" title="setSliceColor" />
+          <button id="btn-pie-slice-color-reset">Reset colour</button>
+        </div>
+        <div class="control-group">
+          <label for="pie-palette">Palette</label>
+          <select id="pie-palette">
+            <option value="default" selected>default</option>
+            <option value="pastel">pastel</option>
+            <option value="ocean">ocean</option>
+            <option value="mono">mono</option>
+          </select>
+        </div>
+        <div class="vr"></div>
+        <div class="control-group">
+          <label for="pie-border-color">Border</label>
+          <input type="color" id="pie-border-color" value="#ffffff" />
+          <button id="btn-pie-border-auto">Auto</button>
+          <input type="number" id="pie-border-width" value="1" min="0" step="0.5" style="width:56px" title="sliceBorderWidth" />
+        </div>
+        <div class="control-group">
+          <label for="pie-donut">Donut</label>
+          <input type="range" id="pie-donut" min="0" max="0.9" step="0.05" value="0" />
+          <span id="pie-donut-value" style="font-size:12px;color:#374151;min-width:28px">0.00</span>
+        </div>
+        <div class="vr"></div>
+        <div class="control-group">
+          <label for="pie-labels">Labels</label>
+          <select id="pie-labels">
+            <option value="none">none</option>
+            <option value="label">label</option>
+            <option value="value">value</option>
+            <option value="percent">percent</option>
+            <option value="label-value">label-value</option>
+            <option value="label-percent" selected>label-percent</option>
+          </select>
+          <select id="pie-label-position">
+            <option value="outside" selected>outside</option>
+            <option value="inside">inside</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="pie-value-format">Value format</label>
+          <input type="text" id="pie-value-format" value=",.2~f" style="width:64px" />
+        </div>
+        <div class="vr"></div>
+        <div class="control-group">
+          <label><input type="checkbox" id="pie-tooltip" checked /> Tooltip</label>
+        </div>
+        <div class="control-group">
+          <label for="pie-theme">Theme</label>
+          <select id="pie-theme">
+            <option value="light" selected>light</option>
+            <option value="dark">dark</option>
+          </select>
+        </div>
       </div>
 
       <!-- Line tab: curve, smoothing, decimation, scale -->
@@ -596,7 +669,7 @@
         })
       })
 
-      // Chart type toggle — reloads the page with ?chart=temporal|numeric
+      // Chart type toggle — reloads the page with ?chart=temporal|numeric|pie
       const _chartKind = new URLSearchParams(location.search).get('chart') ?? 'temporal'
       document.getElementById('btn-chart-' + _chartKind).classList.add('active')
       document.getElementById('btn-chart-temporal').addEventListener('click', () => {
@@ -607,6 +680,11 @@
       document.getElementById('btn-chart-numeric').addEventListener('click', () => {
         const url = new URL(location.href)
         url.searchParams.set('chart', 'numeric')
+        location.href = url.toString()
+      })
+      document.getElementById('btn-chart-pie').addEventListener('click', () => {
+        const url = new URL(location.href)
+        url.searchParams.set('chart', 'pie')
         location.href = url.toString()
       })
     </script>

@@ -1,11 +1,11 @@
-import type { Harness } from './state.ts'
+import type { BaseHarness } from './state.ts'
 
 /**
  * Modules tab: shows which implementation serves the chart and, on the module
  * engine, the registered modules and a computation-plan dump. Confirms at a
  * glance that each migration step landed.
  */
-export function initModulesTab(h: Harness): void {
+export function initModulesTab(h: BaseHarness): void {
   const implEl = document.getElementById('modules-impl')!
   const listEl = document.getElementById('modules-list')!
   const btnPlan = document.getElementById('btn-dump-plan')!
@@ -66,7 +66,7 @@ interface ProfilerStats {
  * and renders them. The numbers grow as passes run, so a live poll beats a
  * one-shot read on toggle.
  */
-function initProfiler(h: Harness): void {
+function initProfiler(h: BaseHarness): void {
   const btnProfiler = document.getElementById('btn-toggle-profiler')!
   const btnReset = document.getElementById('btn-reset-profiler')!
   const outEl = document.getElementById('profiler-output')!

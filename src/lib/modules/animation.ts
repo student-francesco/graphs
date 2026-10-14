@@ -9,9 +9,9 @@ import { EASING_MAP } from '@/lib/d3-maps.ts'
 import type { AnimationMode } from '@/lib/types.ts'
 import {
   AnimationCtx,
+  BaseSettings,
   D3Ctx,
   Scales,
-  Settings,
   VisibleSeries,
   type AnimationCtxValue,
   type AnySelection,
@@ -42,8 +42,13 @@ import {
  * Trimmed-off points are kept joined as ~5 pending EXIT points (dots + the line's
  * leftmost segment) so the strip's left edge stays continuous as it scrolls off
  * under the fade mask instead of popping (`series.trimExitPoints` in scrollPost).
+ *
+ * `scroll: false` (charts that never scroll — pie) leaves the two scroll steps out,
+ * so the module needs nothing but the trigger and settings; a tiny post step keeps
+ * the interrupt-easing clock instead.
  */
-export function animationModule(): ChartModule {
+export function animationModule(opts: { readonly scroll?: boolean } = {}): ChartModule {
+  const scroll = opts.scroll ?? true
   // Mirrors the monolith's construction-time init: renders within the first
   // animation window use the easeExpOut interrupt easing.
   let lastRenderAt = Date.now()
@@ -77,7 +82,7 @@ export function animationModule(): ChartModule {
       prepareStep({
         id: 'animation.ctx',
         description: 'Resolve the pass’s animation mode, duration and easing from the trigger kind and settings.',
-        reads: { trigger: Trigger, settings: Settings },
+        reads: { trigger: Trigger, settings: BaseSettings },
         provides: AnimationCtx,
         // Helpers are closures; equality is the policy tuple. Consumers keep the
         // previous (behaviorally identical) value when nothing changed.
@@ -105,7 +110,7 @@ export function animationModule(): ChartModule {
       }),
     ],
 
-    render: [
+    render: scroll ? [
       renderStep({
         id: 'animation.scrollPre',
         reads: { anim: AnimationCtx, ctx: D3Ctx, visible: VisibleSeries, scales: Scales },
@@ -227,6 +232,16 @@ export function animationModule(): ChartModule {
           // the strip's left edge stays continuous as it scrolls off under the fade
           // mask instead of popping; takes effect on the next data-driven join.
           rtRef?.command('series.trimExitPoints', 5)
+        },
+      }),
+    ] : [
+      renderStep({
+        id: 'animation.settle',
+        reads: { anim: AnimationCtx },
+        phase: 'post',
+        alwaysRun: true,
+        run: (_deps, stepCtx) => {
+          lastRenderAt = stepCtx.now
         },
       }),
     ],
