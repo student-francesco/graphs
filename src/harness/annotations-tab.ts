@@ -20,6 +20,9 @@ export function initAnnotationsTab(h: Harness): AnnotationsTabApi {
   const annoThickness = document.getElementById('anno-thickness') as HTMLInputElement
   const annoDashed = document.getElementById('anno-dashed') as HTMLInputElement
   const annoDraggable = document.getElementById('anno-draggable') as HTMLInputElement
+  const annoDragGroup = document.getElementById('anno-draggable-group') as HTMLElement
+  const annoDragMin = document.getElementById('anno-drag-min') as HTMLInputElement
+  const annoDragMax = document.getElementById('anno-drag-max') as HTMLInputElement
   const annoDragValue = document.getElementById('anno-drag-value') as HTMLSpanElement
   let annoCounter = 1
 
@@ -28,6 +31,22 @@ export function initAnnotationsTab(h: Harness): AnnotationsTabApi {
     ;(annoYInput.parentElement as HTMLElement).style.display = isHorizontal ? '' : 'none'
     ;(annoXInput.parentElement as HTMLElement).style.display = isHorizontal ? 'none' : ''
     ;(annoAxis.parentElement as HTMLElement).style.display = isHorizontal ? '' : 'none'
+    // Dragging is horizontal-only, so the whole drag group goes away for vertical lines
+    // rather than sitting there offering settings that `setVerticalLine` can't take.
+    annoDragGroup.style.display = isHorizontal ? '' : 'none'
+  }
+
+  /** Bounds only mean something for a draggable line — grey them out otherwise. */
+  function syncDragBoundsEnabled(): void {
+    annoDragMin.disabled = !annoDraggable.checked
+    annoDragMax.disabled = !annoDraggable.checked
+  }
+
+  /** Both ends must parse for `dragBounds`; anything else means "use the axis domain". */
+  function readDragBounds(): [number, number] | undefined {
+    const lo = parseFloat(annoDragMin.value)
+    const hi = parseFloat(annoDragMax.value)
+    return isNaN(lo) || isNaN(hi) ? undefined : [lo, hi]
   }
 
   function syncAnnoAxisOptions(): void {
@@ -43,11 +62,13 @@ export function initAnnotationsTab(h: Harness): AnnotationsTabApi {
   }
 
   annoType.addEventListener('change', syncAnnoTypeVisibility)
+  annoDraggable.addEventListener('change', syncDragBoundsEnabled)
   // Refresh the axis dropdown after any axis-tab action that could have added/removed axes.
   for (const btnId of ['btn-create-axis', 'btn-remove-axis']) {
     document.getElementById(btnId)!.addEventListener('click', () => setTimeout(syncAnnoAxisOptions, 0))
   }
   syncAnnoTypeVisibility()
+  syncDragBoundsEnabled()
   syncAnnoAxisOptions()
 
   document.getElementById('btn-anno-add')!.addEventListener('click', () => {
@@ -65,11 +86,14 @@ export function initAnnotationsTab(h: Harness): AnnotationsTabApi {
         thickness: parseFloat(annoThickness.value) || 1.5,
         dashed: annoDashed.checked,
         draggable: annoDraggable.checked,
+        dragBounds: readDragBounds(),
         onDrag: v => { annoDragValue.textContent = `${v.toFixed(2)} (dragging)` },
         onDragEnd: v => { annoDragValue.textContent = v.toFixed(2) },
       }
       chart.setHorizontalLine(name, y, label, settings)
-      setLog(`setHorizontalLine("${name}", ${y}, "${label}", ${JSON.stringify(settings)})`)
+      // JSON.stringify drops the onDrag/onDragEnd functions, so name them explicitly.
+      const cbs = settings.draggable ? ', onDrag, onDragEnd' : ''
+      setLog(`setHorizontalLine("${name}", ${y}, "${label}", ${JSON.stringify(settings)}${cbs})`)
     } else {
       const x = annoXInput.value.trim()
       if (!x) {
