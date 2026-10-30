@@ -403,16 +403,64 @@ function resolveXLabelsSync(
   // The public formatter is typed for Date (temporal charts); a numeric chart's
   // tick is passed through as the raw number — never coerced to a Date.
   if (typeof formatter === 'function') return ticks.map((d, i) => formatter(d as Date, i))
-  // Each scale kind yields a matching formatter (time vs number); the tick type
-  // always agrees with the scale that produced it. Log's default tickFormat blanks
-  // non-power-of-base ticks, so every rendered tick still gets a label (mirrors
-  // the y-axis log formatting).
+  // Time ticks get the resolution-aware formatter; numeric ticks use the scale's
+  // own. Log's default tickFormat blanks non-power-of-base ticks, so every rendered
+  // tick still gets a label (mirrors the y-axis log formatting).
+  if (ticks.length > 0 && ticks[0] instanceof Date) return formatTimeTicks(ticks as Date[])
   const fmt = (
     settings.xScaleType === 'log'
       ? (xScale as d3.ScaleLogarithmic<number, number>).tickFormat(ticks.length, '.2~s')
       : xScale.tickFormat()
   ) as (d: Date | number) => string
   return ticks.map(d => fmt(d))
+}
+
+export type TimeResolution = 'millisecond' | 'second' | 'minute' | 'day' | 'month' | 'year'
+
+/**
+ * The finest calendar unit any tick actually uses. Dropping only units that are
+ * zero on EVERY tick keeps labels distinct, so precision grows as the user zooms
+ * in (days → hours:minutes → seconds → milliseconds) and shrinks as they zoom out.
+ */
+export function timeResolution(ticks: readonly Date[]): TimeResolution {
+  if (ticks.some(d => d.getMilliseconds() !== 0)) return 'millisecond'
+  if (ticks.some(d => d.getSeconds() !== 0)) return 'second'
+  if (ticks.some(d => d.getMinutes() !== 0 || d.getHours() !== 0)) return 'minute'
+  if (ticks.some(d => d.getDate() !== 1)) return 'day'
+  if (ticks.some(d => d.getMonth() !== 0)) return 'month'
+  return 'year'
+}
+
+const TIME_OF_DAY: Partial<Record<TimeResolution, (d: Date) => string>> = {
+  millisecond: d3.timeFormat('%H:%M:%S.%L'),
+  second: d3.timeFormat('%H:%M:%S'),
+  minute: d3.timeFormat('%H:%M'),
+}
+const fmtDay = d3.timeFormat('%b %d')
+const fmtMonth = d3.timeFormat('%b')
+const fmtYear = d3.timeFormat('%Y')
+const sameDay = (a: Date, b: Date) => d3.timeDay.floor(a).getTime() === d3.timeDay.floor(b).getTime()
+
+/**
+ * Default temporal x labels at the ticks' resolution. Context of the next-coarser
+ * unit (the date for time-of-day ticks, the year for day/month ticks) is printed
+ * on the first tick and wherever it changes, so labels never repeat and the reader
+ * always knows which day / year a run of ticks belongs to.
+ */
+export function formatTimeTicks(ticks: readonly Date[]): string[] {
+  const resolution = timeResolution(ticks)
+  const timeOfDay = TIME_OF_DAY[resolution]
+  return ticks.map((d, i) => {
+    const prev = i > 0 ? ticks[i - 1]! : null
+    if (timeOfDay) {
+      const time = timeOfDay(d)
+      return prev && sameDay(prev, d) ? time : `${fmtDay(d)} ${time}`
+    }
+    if (resolution === 'year') return fmtYear(d)
+    const label = resolution === 'day' ? fmtDay(d) : fmtMonth(d)
+    if (prev && prev.getFullYear() === d.getFullYear()) return label
+    return resolution === 'day' ? `${label}, ${fmtYear(d)}` : `${label} ${fmtYear(d)}`
+  })
 }
 
 async function resolveXLabelsAsync(

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Temporal x-axis labels now follow the zoom resolution. Without an `xAxisFormatter`, the labels used d3's stock multi-scale format, which printed only the unit that changed (`12 PM | Fri 30 | 12 PM`, `:05`, `.500`), so labels repeated and lost their date context. The new default picks its precision from the finest unit the rendered ticks use. That gives dates (`Oct 28`), then date-times (`Oct 28 13:00`), then seconds (`13:00:05`), then milliseconds (`13:00:00.020`) as the user zooms in, and months/years when zoomed out. The next-coarser unit (the date, or the year) is printed on the first tick and wherever it changes, so adjacent labels never repeat. Times are 24-hour (previously 12-hour `01 PM`). Host formatters (JS functions and Blazor delegates) are unaffected.
+
 ## [1.5.0] - 2026-10-14
 
 ### Added
