@@ -18,6 +18,7 @@ const ALLOWED = [
   /^\.\.\/skeleton\.ts$/,
   /^\.\.\/tooltip\.ts$/,
   /^\.\.\/pdf\.ts$/,
+  /^\.\.\/export\/index\.ts$/, // export provider registry (lib utility)
   // @/ alias equivalents (@ → src/)
   /^@\/lib\/engine\//,
   /^@\/lib\/modules\/tokens\.ts$/,
@@ -28,6 +29,7 @@ const ALLOWED = [
   /^@\/lib\/skeleton\.ts$/,
   /^@\/lib\/tooltip\.ts$/,
   /^@\/lib\/pdf\.ts$/,
+  /^@\/lib\/export\/index\.ts$/,
 ]
 
 let failures = 0
