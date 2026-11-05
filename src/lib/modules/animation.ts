@@ -294,6 +294,8 @@ function buildCtx(
 
   /** Duration for entering-tick fades, independent of the main animation mode. */
   const ENTER_FADE_MS = 200
+  /** Transition name for entering fades; see fadeIn. */
+  const FADE_IN = 'lc-fade-in'
 
   return {
     mode,
@@ -331,7 +333,16 @@ function buildCtx(
       } else if (mode === 'morph' && duration > 0) {
         // Include exit points so the control-point count stays identical mid-tween.
         const renderData = exit.length > 0 ? [...exit, ...display] : display
+        // This tween interrupts any draw-on still running on the path (another
+        // series' update can land within the draw-on window), and an interrupted
+        // draw-on never reaches its 'end' handler — so clear its dash here, or the
+        // line stays cut off at wherever the reveal stopped. Interrupt explicitly
+        // first: the new tween only takes over on its first frame, and the draw-on
+        // would write one more dash offset before then.
         path
+          .interrupt()
+          .attr('stroke-dasharray', null)
+          .attr('stroke-dashoffset', null)
           .transition()
           .duration(duration)
           .ease(ease)
@@ -354,13 +365,17 @@ function buildCtx(
 
     fadeIn(sel) {
       if (!fadeEnters) return
-      sel.style('opacity', 0).transition().duration(ENTER_FADE_MS).style('opacity', null)
+      // Named, so the next pass's `position` tween on the same element (the default,
+      // unnamed transition) can't interrupt it — an interrupted fade-in leaves the
+      // element stuck at its inline opacity: 0.
+      sel.style('opacity', 0).transition(FADE_IN).duration(ENTER_FADE_MS).style('opacity', null)
     },
 
     fadeOutExit(sel: AnySelection, exitingClass: string, reshift?: ReshiftSpec) {
       // Rename immediately so future joins never see these elements; mark for the
       // transition driver's scroll reshift; retire independently of later renders.
-      const marked = sel.attr('class', exitingClass).attr('data-lc-exiting', '')
+      // Stop any fade-in still running, or it would fight the fade-out over opacity.
+      const marked = sel.interrupt(FADE_IN).attr('class', exitingClass).attr('data-lc-exiting', '')
       if (reshift) {
         marked.each(function (this: Element) {
           ;(this as Element & { __lcReshift?: ReshiftSpec }).__lcReshift = reshift

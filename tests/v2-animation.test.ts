@@ -74,6 +74,46 @@ describe('v2 drawOn', () => {
   })
 })
 
+// Several series fed independently (one live source each) re-render the chart a few ms
+// apart. Each pass must not cancel the previous pass's one-shot animations.
+describe('v2 back-to-back series updates', () => {
+  it('entering x ticks still finish fading in when the next render lands mid-fade', async () => {
+    const { chart, $all } = mountV2({ animationDuration: DURATION, updateDataAnimation: 'morph' })
+    chart.setSeriesData('a', genSeries(8))
+    chart.setSeriesData('b', genSeries(8, { base: 80 }))
+    await sleep(400)
+
+    // Widen the domain so new ticks enter, then re-render again well inside the 200 ms fade.
+    chart.updateSeriesData('a', genSeries(16))
+    await sleep(10)
+    chart.updateSeriesData('b', genSeries(16, { base: 80 }))
+    await sleep(400)
+
+    const ticks = $all('.lc-x-tick') as SVGGElement[]
+    expect(ticks.length).toBeGreaterThan(0)
+    for (const tick of ticks) {
+      expect(tick.style.opacity === '' || tick.style.opacity === '1').toBe(true)
+    }
+  })
+
+  it("a new series' draw-on interrupted by a morph does not leave the line dashed", async () => {
+    const { chart, $all } = mountV2({ animationDuration: DURATION, updateDataAnimation: 'morph' })
+    chart.removeSeries('default')
+    chart.addSeries('a')
+    chart.addSeries('b')
+    chart.updateSeriesData('a', genSeries(8)) // a's path is new: draw-on
+    await sleep(5)
+    // b's first data re-renders a's (no longer new) path with a morph, interrupting its draw-on
+    chart.updateSeriesData('b', genSeries(8, { base: 80 }))
+    await sleep(DURATION * 4)
+
+    for (const path of $all('.lc-line')) {
+      expect(path.getAttribute('stroke-dasharray')).toBeNull()
+      expect(path.getAttribute('stroke-dashoffset')).toBeNull()
+    }
+  })
+})
+
 describe('v2 morph', () => {
   it('keeps the path element; dropped points stay joined as exit-point dots', async () => {
     const { chart, $, $all } = mountV2({ animationDuration: DURATION })
